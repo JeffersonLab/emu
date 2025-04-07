@@ -158,6 +158,28 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
     /** How many buffers were reassembled successfully between GO and END. */
     private long buffersReassembled;
 
+    /**
+     * Class able to hold stats of packet-related quantities for receiving.
+     * The contained info relates to the reading/reassembly of a complete buffer.
+     */
+    class  packetRecvStats {
+        long droppedPackets;   /**< Number of dropped packets. This cannot be known exactly, only estimate. */
+        long acceptedPackets;  /**< Number of packets successfully read. */
+        long discardedPackets; /**< Number of packets discarded because reassembly was impossible. */
+        long badSrcIdPackets;  /**< Number of packets received with wrong source id. */
+
+        long droppedBytes;     /**< Number of bytes dropped. */
+        long acceptedBytes;    /**< Number of bytes successfully read, NOT including RE header. */
+        long discardedBytes;   /**< Number of bytes dropped. */
+
+        long droppedBuffers;    /**< Number of ticks/buffers for which no packets showed up.
+         Don't think it's possible to measure this in general. */
+        long discardedBuffers;  /**< Number of ticks/buffers discarded. */
+        long builtBuffers;      /**< Number of ticks/buffers fully reassembled. */
+
+        long lastTick;
+        int  lastDataId;
+    };
 
 
     /**
@@ -663,50 +685,56 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
      * <p>
      * Parse the reassembly header at the start of the given array.
      * Return parsed values in array. The following is to viewed as
-     * 4 32-bit integers with LSB at 0 bit and MSB at 31.
+     * 5 32-bit integers with LSB at 0 bit and MSB at 31.
      * These will be send in network byte order - big endian.
      * This format is used with ERSAP and its use of the U280 FPGA load balancer.
      * </p>
      * <pre>
+     *  protocol 'Version:4, Rsvd:12, Data-ID:16, Offset:32, Length:32, Tick:64'
+     *
      *  0                   1                   2                   3
      *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     *  |Version|        Rsvd       |F|L|            Data-ID            |
+     *  |Version|        Rsvd           |            Data-ID            |
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     *  |                  UDP Packet Offset                            |
+     *  |                         Buffer Offset                         |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |                         Buffer Length                         |
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      *  |                                                               |
      *  +                              Tick                             +
      *  |                                                               |
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     *  *   Padding 1   |   Padding 2   |
-     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      * </pre>
      *
      * @param buffer     buffer to parse.
      * @param off        offset into buffer to begin parsing.
-     * @param parsedVals array to hold 5 parsed values
+     * @param parsedVals array to hold 4 parsed values
      * @param tick array to hold tick
      */
     static void parseErsapReHeader(byte[] buffer, int off, int[] parsedVals, long[] tick) {
-        // Speed things up by skipping arg checks
-        //if (parsedVals == null || parsedVals.length < 5 || tick == null || tick.length < 1) return;
+        if (parsedVals == null || parsedVals.length < 4 || tick == null || tick.length < 1) return;
 
         // version high 4 bits of first byte
         parsedVals[0] = (buffer[off] >> 4) & 0xf;
-        // first
-        parsedVals[1] = (buffer[off+1] >> 1) & 0x1;
-        // last
-        parsedVals[2] =  buffer[off+1] & 0x1;
-        // data id (big end byte first)
-        parsedVals[3] = ByteDataTransformer.toShort(buffer[off+2], buffer[off+3], ByteOrder.BIG_ENDIAN) & 0xffff;
 
-        // sequence (big end byte first)
-        parsedVals[4] = ByteDataTransformer.toInt(buffer[off+4], buffer[off+5], buffer[off+6], buffer[off+7],
+        // data id (big endian)
+        parsedVals[1] = ByteDataTransformer.toShort(buffer[off+2], buffer[off+3],
+                                                    ByteOrder.BIG_ENDIAN) & 0xffff;
+
+        // buffer offset (big endian)
+        parsedVals[2] = ByteDataTransformer.toInt(buffer[off+4], buffer[off+5],
+                                                  buffer[off+6], buffer[off+7],
                                                   ByteOrder.BIG_ENDIAN);
-        // tick (big end byte first)
-        tick[0] = ByteDataTransformer.toLong(buffer[off+8],  buffer[off+9],  buffer[off+10], buffer[off+11],
-                                             buffer[off+12], buffer[off+13], buffer[off+14], buffer[off+15],
+
+        // buffer length (big endian)
+        parsedVals[3] = ByteDataTransformer.toInt(buffer[off+8], buffer[off+9],
+                                                  buffer[off+10], buffer[off+11],
+                                                  ByteOrder.BIG_ENDIAN);
+
+        // tick (big endian)
+        tick[0] = ByteDataTransformer.toLong(buffer[off+12], buffer[off+13], buffer[off+14], buffer[off+15],
+                                             buffer[off+16], buffer[off+17], buffer[off+18], buffer[off+19],
                                              ByteOrder.BIG_ENDIAN);
     }
 
@@ -714,55 +742,116 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
      * <p>
      * Parse the reassembly header at the start of the given array.
      * Return parsed values in array. The following is to viewed as
-     * 4 32-bit integers with LSB at 0 bit and MSB at 31.
+     * 5 32-bit integers with LSB at 0 bit and MSB at 31.
      * These will be send in network byte order - big endian.
      * This format is used with ERSAP and its use of the U280 FPGA load balancer.
      * </p>
      * <pre>
+     *  protocol 'Version:4, Rsvd:12, Data-ID:16, Offset:32, Length:32, Tick:64'
+     *
      *  0                   1                   2                   3
      *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     *  |Version|        Rsvd       |F|L|            Data-ID            |
+     *  |Version|        Rsvd           |            Data-ID            |
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     *  |                  UDP Packet Offset                            |
+     *  |                         Buffer Offset                         |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |                         Buffer Length                         |
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      *  |                                                               |
      *  +                              Tick                             +
      *  |                                                               |
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     *  *   Padding 1   |   Padding 2   |
-     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      * </pre>
      *
      * @param buffer     ByteBuffer to parse.
      * @param off        offset into buffer.
-     * @param parsedVals array to hold 5 parsed values
+     * @param parsedVals array to hold 4 parsed values
      * @param tick array to hold tick
      */
     static void parseErsapReHeader(ByteBuffer buffer, int off, int[] parsedVals, long[] tick) {
-        // Speed things up by skipping arg checks
-        //if (parsedVals == null || parsedVals.length < 5 || tick == null || tick.length < 1) return;
+        if (parsedVals == null || parsedVals.length < 4 || tick == null || tick.length < 1) return;
 
         // version high 4 bits of first byte
         parsedVals[0] = (buffer.get(off) >> 4) & 0xf;
-        // first
-        parsedVals[1] = (buffer.get(off+1) >> 1) & 0x1;
-        // last
-        parsedVals[2] =  buffer.get(off+1) & 0x1;
-        // data id (big end byte first)
-        parsedVals[3] = ByteDataTransformer.toShort(buffer.get(off+2), buffer.get(off+3),
+
+        // data id (big endian)
+        parsedVals[1] = ByteDataTransformer.toShort(buffer.get(off+2), buffer.get(off+3),
                                                     ByteOrder.BIG_ENDIAN) & 0xffff;
 
-        // sequence (big end byte first)
-        parsedVals[4] = ByteDataTransformer.toInt(buffer.get(off+4), buffer.get(off+5),
+        // buffer offset (big endian)
+        parsedVals[2] = ByteDataTransformer.toInt(buffer.get(off+4), buffer.get(off+5),
                                                   buffer.get(off+6), buffer.get(off+7),
                                                   ByteOrder.BIG_ENDIAN);
-        // tick (big end byte first)
-        tick[0] = ByteDataTransformer.toLong(buffer.get(off+8),  buffer.get(off+9),
-                                             buffer.get(off+10), buffer.get(off+11),
-                                             buffer.get(off+12), buffer.get(off+13),
+
+        // buffer length (big endian)
+        parsedVals[3] = ByteDataTransformer.toInt(buffer.get(off+8), buffer.get(off+9),
+                                                  buffer.get(off+10), buffer.get(off+11),
+                                                  ByteOrder.BIG_ENDIAN);
+
+        // tick (big endian)
+        tick[0] = ByteDataTransformer.toLong(buffer.get(off+12), buffer.get(off+13),
                                              buffer.get(off+14), buffer.get(off+15),
+                                             buffer.get(off+16), buffer.get(off+17),
+                                             buffer.get(off+18), buffer.get(off+19),
                                              ByteOrder.BIG_ENDIAN);
+    }
+
+
+    /**
+     * <p>
+     * Write the reassembly header, at the start of the given byte array,
+     * in the format used in ERSAP project.
+     * The first 16 bits go as ordered. The dataId is put in network byte order.
+     * The offset, length and tick are also put into network byte order.
+     * This is the new, version 2, RE header.</p>
+     *
+     * The difficulty with Java is that all integers are signed.
+     * But the interpretation of these integer values in the reassembly's C++ lib
+     * is that they are unsigned, so user beware.
+     *
+     * <pre>
+     *  protocol 'Version:4, Rsvd:12, Data-ID:16, Offset:32, Length:32, Tick:64'
+     *
+     *  0                   1                   2                   3
+     *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |Version|        Rsvd           |            Data-ID            |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |                         Buffer Offset                         |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |                         Buffer Length                         |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |                                                               |
+     *  +                             Tick                              +
+     *  |                                                               |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * </pre>
+     *
+     * @param buffer        byte array in which to write.
+     * @param offset        index in buffer to start writing.
+     * @param version       version of meta data (should be 2).
+     * @param dataId        data source id.
+     * @param bufferOffset  byte offset into full buffer payload.
+     * @param bufferLength  total length in bytes of full buffer payload.
+     * @param tick          tick value.
+     * @throws Exception    if offset &lt; 0 or buffer overflow.
+     */
+    void writeErsapReHeader(byte[] buffer, int offset,
+                                   int version, short dataId,
+                                   int bufferOffset, int bufferLength, long tick)
+            throws Exception {
+
+        if (offset < 0 || (offset + RE_HEADER_BYTES > buffer.length)) {
+            throw new Exception("offset arg < 0 or buf too small");
+        }
+
+        buffer[offset] = (byte) (version << 4);
+
+        ByteDataTransformer.toBytes(dataId, ByteOrder.BIG_ENDIAN, buffer, offset + 2);
+        ByteDataTransformer.toBytes(bufferOffset, ByteOrder.BIG_ENDIAN, buffer, offset + 4);
+        ByteDataTransformer.toBytes(bufferLength, ByteOrder.BIG_ENDIAN, buffer, offset + 8);
+        ByteDataTransformer.toBytes(tick, ByteOrder.BIG_ENDIAN, buffer, offset + 12);
     }
 
 
@@ -856,8 +945,21 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
          */
         //  @Override
         public void run() {
+            if (useErsapReHeader) {
+                runErsap();
+            }
+            else {
+                runCoda();
+            }
+        }
 
-            // Tell the everyone I've started
+
+        /**
+         * Read packets in Dave Abbott's original format.
+         */
+        public void runCoda() {
+
+            // Tell everyone I've started
             latch.countDown();
             logger.info("    DataChannel UDP stream in: " + name + " - started");
 
@@ -984,40 +1086,27 @@ if (debug) System.out.println("reallocated buffer to " + bufLen + " bytes");
                             // Number of data bytes not counting RE header
                             nBytes = bytesRead - HEADER_BYTES;
 
-                            if (useErsapReHeader) {
-                                // Parse Ersap format RE header
-                                parseErsapReHeader(pkt, 0, reHeader, tick);
+                            // Parse VTP format RE header
+                            parseReHeader(pkt, 0, reHeader);
 
-                                version      = reHeader[0];
-                                packetFirst  = reHeader[1] == 1 ? true : false;
-                                packetLast   = reHeader[2] == 1 ? true : false;
-                                packetDataId = reHeader[3];
-                                sequence     = reHeader[4];
-                                packetTick   = tick[0];
-                            }
-                            else {
-                                // Parse VTP format RE header
-                                parseReHeader(pkt, 0, reHeader);
+                            version      = reHeader[0];
+                            // recordId (1 byte), must be sequential
+                            packetTick   = reHeader[1];
+                            packetFirst  = reHeader[2] == 1 ? true : false;
+                            packetLast   = reHeader[3] == 1 ? true : false;
+                            packetDataId = reHeader[4];
+                            pktCount     = reHeader[6];
 
-                                version      = reHeader[0];
-                                // recordId (1 byte), must be sequential
-                                packetTick   = reHeader[1];
-                                packetFirst  = reHeader[2] == 1 ? true : false;
-                                packetLast   = reHeader[3] == 1 ? true : false;
-                                packetDataId = reHeader[4];
-                                pktCount     = reHeader[6];
-
-                                // VTP starts at 1, not 0. HOWEVER, the simulated fpga / secondary agg start at 0!!
-                                sequence = reHeader[5];
+                            // VTP starts at 1, not 0. HOWEVER, the simulated fpga / secondary agg start at 0!!
+                            sequence = reHeader[5];
 //System.out.println("     first seq = " + sequence);
-                                if (vtpSource) {
-                                    sequence--;
+                            if (vtpSource) {
+                                sequence--;
 //System.out.println("     vtp seq -> " + sequence);
-                                    if (sequence == -1) {
-                                        vtpSource = false;
-                                        sequence++;
+                                if (sequence == -1) {
+                                    vtpSource = false;
+                                    sequence++;
 //System.out.println("     non-vtp seq -> " + sequence);
-                                    }
                                 }
                             }
 
@@ -1028,7 +1117,7 @@ if (debug) System.out.println("reallocated buffer to " + bufLen + " bytes");
                             // (a concept from ERSAP reassembly) is really LIKE the "record id" or block/record
                             // number of the evio header containing event being sent
                             // (even if control or user event). Starts at 0.
-                            // In addition we are not going to stop receiving if
+                            // In addition, we are not going to stop receiving if
                             // a buffer is dropped and the record id is not sequential.
 
 //System.out.println("Got what should be first packet of buf, seq " + sequence);
@@ -1055,52 +1144,31 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                                 throw new EmuException("Got packet with no data, internal error");
                             }
 
-                            // Parse header
-                            if (useErsapReHeader) {
-                                // Parse Ersap format RE header
-                                parseErsapReHeader(buffer, writeHeaderAt, reHeader, tick);
+                            // Parse VTP format RE header
+                            parseReHeader(buffer, writeHeaderAt, reHeader);
 
-                                version      = reHeader[0];
-                                packetFirst  = reHeader[1] == 1 ? true : false;
-                                packetLast   = reHeader[2] == 1 ? true : false;
-                                packetDataId = reHeader[3];
-                                sequence     = reHeader[4];
-                                packetTick   = tick[0];
+                            version      = reHeader[0];
+                            packetTick   = reHeader[1]; // recordId (1 byte)
+                            packetFirst  = reHeader[2] == 1 ? true : false;
+                            packetLast   = reHeader[3] == 1 ? true : false;
+                            packetDataId = reHeader[4]; // source id
+                            pktCount     = reHeader[6];
+
+                            // VTP starts at 1, not 0. HOWEVER, the simulated fpga / secondary agg start at 0!!
+                            sequence = reHeader[5];
+                            if (vtpSource) {
+                                sequence--;
                             }
-                            else {
-                                // Parse VTP format RE header
-                                parseReHeader(buffer, writeHeaderAt, reHeader);
-
-                                version      = reHeader[0];
-                                packetTick   = reHeader[1]; // recordId (1 byte)
-                                packetFirst  = reHeader[2] == 1 ? true : false;
-                                packetLast   = reHeader[3] == 1 ? true : false;
-                                packetDataId = reHeader[4]; // source id
-                                pktCount     = reHeader[6];
-
-                                // VTP starts at 1, not 0. HOWEVER, the simulated fpga / secondary agg start at 0!!
-                                sequence = reHeader[5];
-                                if (vtpSource) {
-                                    sequence--;
-                                }
 //System.out.println("     plain seq = " + sequence);
-                            }
 //System.out.println("Got packet, seq " + sequence);
 
                             // Replace what was written over
                             System.arraycopy(headerStorage, 0, buffer, writeHeaderAt, HEADER_BYTES);
                         }
 
-//                        if (useErsapReHeader) {
-//                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
-//                                    packetLast + ", tick = " + packetTick + ", seq = " + sequence +
-//                                    ", source id = " + packetDataId + ", nBytes = " + nBytes);
-//                        }
-//                        else {
 //                            System.out.println("\nPkt hdr: ver = " + version + ", first = " + packetFirst + ", last = " +
 //                                    packetLast + ", recordId = " + packetTick + ", seq = " + sequence +
 //                                    ", pktCount = " +pktCount + ", source id = " + packetDataId + ", nBytes = " + nBytes);
-//                        }
 
                         //
                         // The assumption here is that:
@@ -1422,7 +1490,342 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                 emu.setErrorState(errString);
             }
         }
-    }
+
+
+        /**
+         * Read packets in EJFAT / ERSAP format.
+         */
+        public void runErsap() {
+
+            // Tell everyone I've started
+            latch.countDown();
+            logger.info("    DataChannel UDP stream in: " + name + " - started");
+
+            // Place to store statistics
+            packetRecvStats stats = new packetRecvStats();
+
+            // "Record ID" in VTP format, euivalent to "tick" in Ersap format
+            long prevTick;
+            long packetTick;
+            int  totalBytesRead;
+            long discardedPackets = 0, discardedBytes = 0, discardedBufs = 0;
+            long expectedTick = 0;
+            int tickPrescale = 1;
+
+            int packetDataId, srcId;
+            int pktCount, totalPkts;
+            int offset, length;
+            int prevLength, prevTotalPkts;
+
+            boolean debug = false;
+            boolean dumpTick;
+            boolean takeStats = true;
+            boolean knowExpectedTick = false;
+
+            int bytesRead;
+            // Buffer in which to place recontructed data from packets
+            byte[] buffer;
+            int dataBytes;
+//            int version;
+
+            // Each pktBuffer is 90KB which contains up to 10 Jumbo packets
+            int chunk = 10;
+            int bufIndex = chunk;
+            ByteBuffer itemBB;
+            ByteBufferItem item;
+            ByteBufferItem[] items = new ByteBufferItem[chunk];
+
+            boolean veryFirstRead;
+            int bufLen, remainingLen;
+
+            // Storage for packet / header
+            int biggestPacketLen = 9100;
+            byte[] pkt = new byte[biggestPacketLen];
+
+            // Allocate once to minimize garbage. Contains data from a single UDP reassembly header.
+            int[] reHeader = new int[7];
+            DatagramPacket packet = new DatagramPacket(pkt, biggestPacketLen);
+            long[] tick = new long[1];
+
+
+            try {
+
+                while (true) {
+                    // If I've been told to RESET ...
+                    if (gotResetCmd) {
+                        return;
+                    }
+
+                    if (pause) {
+                        if (pauseCounter++ % 400 == 0) {
+                            logger.warn("    DataChannel UDP stream in: " + name + " - PAUSED");
+                        }
+                        Thread.sleep(5);
+                        continue;
+                    }
+
+                    // We need to get another chunk of buffers to read valid data into
+                    // since we've used them all.
+                    if (bufIndex == chunk) {
+                        // Grab "chunk" empty buffers from ByteBufferSupply at once for efficiency
+                        bbSupply.get(chunk, items);
+                        // Start with first buffer retrieved
+                        bufIndex = 0;
+                    }
+
+                    item = items[bufIndex++];
+                    // Get reference to item's byte array
+                    itemBB = item.getClearedBuffer();
+                    buffer = itemBB.array();
+                    // How big is this array?
+                    bufLen = buffer.length;
+                    remainingLen = bufLen;
+
+                    dumpTick = false;
+                    veryFirstRead = true;
+
+                    srcId = 0;
+                    pktCount = 0;
+                    totalPkts = 0;
+                    offset = 0;
+                    length = 0;
+                    prevTick = -1;
+                    totalBytesRead = 0;
+
+                    while (true) {
+
+                        // Another packet of data might exceed buffer space, so expand
+                        if (remainingLen < 9000) {
+                            // Double buffer size
+                            itemBB = expandBuffer(itemBB, totalBytesRead, 2);
+                            item.setBuffer(itemBB);
+                            buffer = itemBB.array();
+                            bufLen = buffer.length;
+                            remainingLen = bufLen - totalBytesRead;
+                            if (debug) System.out.println("reallocated buffer to " + bufLen + " bytes");
+                        }
+
+                        if (veryFirstRead) {
+                            totalBytesRead = 0;
+                            pktCount = 0;
+                        }
+
+                        // Read in first packet into temporary storage
+                        packet.setData(pkt, 0, biggestPacketLen);
+//System.out.println("\nWait to receive packet on port " + inSocket.getLocalPort() + ", other end is port " + inSocket.getPort());
+                        inSocket.receive(packet);
+
+                        // Bytes in packet
+                        bytesRead = packet.getLength();
+                        if (bytesRead < RE_HEADER_BYTES) {
+                            throw new EmuException("packet does not contain not enough data");
+                        }
+
+                        // Number of data bytes not counting RE header
+                        dataBytes = bytesRead - RE_HEADER_BYTES;
+
+                        // Parse Ersap format RE header
+                        prevLength = length;
+                        prevTotalPkts = totalPkts;
+                        parseErsapReHeader(pkt, 0, reHeader, tick);
+
+                        //version = reHeader[0];
+                        packetDataId = reHeader[1];
+                        offset = reHeader[2];
+                        length = reHeader[3];
+                        packetTick = tick[0];
+
+                        if (veryFirstRead) {
+                            // record data id of first packet of buffer
+                            srcId = packetDataId;
+                            // guess at # of packets
+                            totalPkts = (length + (dataBytes - 1)) / dataBytes;
+                        }
+                        else if (packetDataId != srcId) {
+                            // different data source, reject this packet
+                            if (takeStats) {
+                                stats.badSrcIdPackets++;
+                            }
+                            if (debug) {
+                                System.out.println("getCompleteAllocatedBuffer: reject pkt from src " + packetDataId);
+                            }
+                            continue;
+                        }
+
+//                        System.out.println("\nPkt hdr: ver = " + version + ", src id = " + packetDataId +
+//                                ", buf off = " + bufferOffset + ", buf len = " + bufferLength +
+//                                ", nBytes = " + dataBytes);
+
+                        // The following if-else is built on the idea that we start with a packet that has offset = 0.
+                        // While it's true that, if missing, it may be out-of-order and will show up eventually,
+                        // experience has shown that this almost never happens. Thus, for efficiency's sake,
+                        // we automatically dump any tick whose first packet does not show up FIRST.
+
+                        // Probably, where this most often gets us into trouble is if the first packet of the next
+                        // tick/event shows up just before the last pkt of the previous tick. In that case, this logic
+                        // just dumps all the previous info even if last pkt comes a little late.
+
+                        // Worst case scenario is if the pkts of 2 events are interleaved.
+                        // Then the number of dumped packets, bytes, and events will be grossly over-counted.
+
+                        // To do a complete job of trying to track out-of-order packets, we would need to
+                        // simultaneously keep track of packets from multiple ticks. This small routine
+                        // would need to keep state - greatly complicating things. So skip that here.
+
+                        // In general, tracking dropped pkts/events/data will always be guess work unless
+                        // we know exactly what we're supposed to be receiving.
+                        // Thus, normally we cannot know how many complete events were dropped.
+                        // When deciding to drop an event due to incomplete packets, we attempt to
+                        // guesstimate the # of packets.
+
+                        // If we get packet from new tick ...
+                        if (packetTick != prevTick) {
+
+                            // If we're here, either we've just read the very first legitimate packet,
+                            // or we've dropped some packets and advanced to another tick.
+
+                            if (offset != 0) {
+                                // Already have trouble, looks like we dropped the first packet of this new tick,
+                                // and possibly others after it.
+                                // So go ahead and dump the rest of the tick in an effort to keep any high data rate.
+                                if (debug) {
+                                    System.out.println("Skip pkt from id " + packetDataId + ", " + packetTick +
+                                                       " - " + offset + ", expected seq 0");
+                                }
+
+                                veryFirstRead = true;
+                                dumpTick = true;
+                                prevTick = packetTick;
+
+                                // Stats. Guess at # of packets.
+                                discardedPackets += totalPkts;
+                                discardedBytes += length;
+                                discardedBufs++;
+
+                                continue;
+                            }
+
+                            if (!veryFirstRead) {
+                                // The last tick's buffer was not fully contructed
+                                // before this new tick showed up!
+                                if (debug) System.out.println("Discard tick " + prevTick);
+
+                                pktCount = 0;
+                                totalBytesRead = 0;
+                                srcId = packetDataId;
+
+                                // We discard previous tick/event
+                                discardedPackets += prevTotalPkts;
+                                discardedBytes += prevLength;
+                                discardedBufs++;
+                            }
+
+                            // If here, new tick/buffer, offset = 0.
+                            // There's a chance we can construct a full buffer.
+                            // Overwrite everything we saved from previous tick.
+                            dumpTick = false;
+                        }
+                        else if (dumpTick) {
+                            // Same as last tick.
+                            // If here, we missed beginning pkt(s) for this buf so we're dumping whole tick
+                            veryFirstRead = true;
+
+                            if (debug) System.out.println("Dump pkt from id " + packetDataId + ", " + packetTick +
+                                    " - " + offset + ", expected seq 0");
+                            continue;
+                        }
+
+                        // Check to see if there's room to write data into provided buffer
+                        if (offset + dataBytes > bufLen) {
+                            throw new EmuException("buffer too small to hold data");
+                        }
+
+                        // Copy data into buf at correct location (provided by RE header)
+                        //+memcpy(dataBuf + offset, pkt + RE_HEADER_BYTES, dataBytes);
+                        System.arraycopy(pkt, RE_HEADER_BYTES, buffer, offset, dataBytes);
+
+                        totalBytesRead += dataBytes;
+                        veryFirstRead = false;
+                        prevTick = packetTick;
+                        pktCount++;
+
+                        // If we've written all data to this buf ...
+                        if (totalBytesRead >= length) {
+
+                            // Keep some stats
+                            if (takeStats) {
+                                stats.lastTick = packetTick;
+                                stats.lastDataId = packetDataId;
+
+                                if (knowExpectedTick) {
+                                    long diff = packetTick - expectedTick;
+                                    diff = (diff < 0) ? -diff : diff;
+                                    long droppedTicks = diff / tickPrescale;
+
+                                    // In this case, it includes the discarded bufs (which it should not)
+                                    stats.droppedBuffers += droppedTicks; // estimate
+
+                                    // This works if all the buffers coming in are exactly the same size.
+                                    // If they're not, then the # of packets of this buffer
+                                    // is used to guess at how many packets were dropped for the dropped tick(s).
+                                    // Again, this includes discarded packets which it should not.
+                                    stats.droppedPackets += droppedTicks * pktCount;
+                                }
+
+                                stats.acceptedBytes += totalBytesRead;
+                                stats.acceptedPackets += pktCount;
+
+                                stats.discardedBytes += discardedBytes;
+                                stats.discardedPackets += discardedPackets;
+                                stats.discardedBuffers += discardedBufs;
+                            }
+
+                            expectedTick = packetTick + 1;
+
+                            break;
+                        }
+                    }
+
+                    //System.out.println("publish, tick " + tick);
+                    if (takeStats) {
+                        stats.builtBuffers++;
+                    }
+
+                    itemBB.limit(totalBytesRead);
+                    bbSupply.publish(item);
+                }
+            }
+            catch (InterruptedException e) {
+                logger.warn("    DataChannel UDP stream in: " + name + ", interrupted, exit reading thd");
+            }
+            catch (AsynchronousCloseException e) {
+                logger.warn("    DataChannel UDP stream in: " + name + ", socket closed, exit reading thd");
+            }
+            catch (IOException e) {
+                // Assume that if the other end of the socket closes, it's because it has
+                // sent the END event and received the end() command.
+                logger.warn("    DataChannel UDP stream in: " + name + ", socket I/O error");
+            }
+            catch (Exception e) {
+                if (haveInputEndEvent) {
+                    System.out.println("    DataChannel UDP stream in: " + name +
+                            ", exception but already have END event, so exit reading thd");
+                    return;
+                }
+                e.printStackTrace();
+                channelState = CODAState.ERROR;
+                // If error msg already set, this will not
+                // set it again. It will send it to rc.
+                String errString = "DataChannel UDP stream in: error reading " + name;
+                if (e.getMessage() != null) {
+                    errString += ' ' + e.getMessage();
+                }
+                emu.setErrorState(errString);
+            }
+        }
+
+
+}
 
 
 
