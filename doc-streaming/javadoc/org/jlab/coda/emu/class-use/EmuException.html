@@ -380,14 +380,13 @@
 </td>
 </tr>
 <tr class="rowColor">
-<td class="colFirst"><code>(package private) static void</code></td>
-<td class="colLast"><span class="typeNameLabel">DataChannelImplUdpStream.</span><code><span class="memberNameLink"><a href="../../../../../org/jlab/coda/emu/support/transport/DataChannelImplUdpStream.html#writeErsapReHeader-byte:A-int-int-boolean-boolean-short-int-long-">writeErsapReHeader</a></span>(byte[]&nbsp;buffer,
+<td class="colFirst"><code>(package private) void</code></td>
+<td class="colLast"><span class="typeNameLabel">DataChannelImplUdpStream.</span><code><span class="memberNameLink"><a href="../../../../../org/jlab/coda/emu/support/transport/DataChannelImplUdpStream.html#writeErsapReHeader-byte:A-int-int-short-int-int-long-">writeErsapReHeader</a></span>(byte[]&nbsp;buffer,
                   int&nbsp;offset,
                   int&nbsp;version,
-                  boolean&nbsp;first,
-                  boolean&nbsp;last,
                   short&nbsp;dataId,
-                  int&nbsp;packetOffset,
+                  int&nbsp;bufferOffset,
+                  int&nbsp;bufferLength,
                   long&nbsp;tick)</code>
 <div class="block">
  Write the reassembly header, at the start of the given byte array,

@@ -21,7 +21,7 @@
     catch(err) {
     }
 //-->
-var methods = {"i0":10,"i1":9,"i2":10,"i3":10,"i4":10,"i5":10,"i6":9,"i7":9,"i8":9,"i9":9,"i10":10,"i11":10,"i12":10,"i13":9,"i14":10,"i15":9,"i16":9,"i17":9,"i18":9};
+var methods = {"i0":10,"i1":9,"i2":10,"i3":10,"i4":10,"i5":10,"i6":9,"i7":9,"i8":9,"i9":9,"i10":10,"i11":10,"i12":10,"i13":10,"i14":9,"i15":9,"i16":9,"i17":9};
 var tabs = {65535:["t0","All Methods"],1:["t1","Static Methods"],2:["t2","Instance Methods"],8:["t4","Concrete Methods"]};
 var altColor = "altColor";
 var rowColor = "rowColor";
@@ -330,21 +330,6 @@ extends <a href="../../../../../../org/jlab/coda/emu/support/transport/DataChann
 </td>
 </tr>
 <tr id="i13" class="rowColor">
-<td class="colFirst"><code>(package private) static void</code></td>
-<td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../org/jlab/coda/emu/support/transport/DataChannelImplUdpStream.html#writeErsapReHeader-byte:A-int-int-boolean-boolean-short-int-long-">writeErsapReHeader</a></span>(byte[]&nbsp;buffer,
-                  int&nbsp;offset,
-                  int&nbsp;version,
-                  boolean&nbsp;first,
-                  boolean&nbsp;last,
-                  short&nbsp;dataId,
-                  int&nbsp;packetOffset,
-                  long&nbsp;tick)</code>
-<div class="block">
- Write the reassembly header, at the start of the given byte array,
- in the format used in ERSAP project.</div>
-</td>
-</tr>
-<tr id="i14" class="altColor">
 <td class="colFirst"><code>(package private) void</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../org/jlab/coda/emu/support/transport/DataChannelImplUdpStream.html#writeErsapReHeader-byte:A-int-int-short-int-int-long-">writeErsapReHeader</a></span>(byte[]&nbsp;buffer,
                   int&nbsp;offset,
@@ -358,7 +343,7 @@ extends <a href="../../../../../../org/jlab/coda/emu/support/transport/DataChann
  in the format used in ERSAP project.</div>
 </td>
 </tr>
-<tr id="i15" class="rowColor">
+<tr id="i14" class="altColor">
 <td class="colFirst"><code>(package private) static int</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../org/jlab/coda/emu/support/transport/DataChannelImplUdpStream.html#writeLbHeader-byte:A-int-long-int-int-int-">writeLbHeader</a></span>(byte[]&nbsp;buffer,
              int&nbsp;off,
@@ -369,7 +354,7 @@ extends <a href="../../../../../../org/jlab/coda/emu/support/transport/DataChann
 <div class="block">Set the Load Balancer header data.</div>
 </td>
 </tr>
-<tr id="i16" class="altColor">
+<tr id="i15" class="rowColor">
 <td class="colFirst"><code>(package private) static int</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../org/jlab/coda/emu/support/transport/DataChannelImplUdpStream.html#writeLbHeader-java.nio.ByteBuffer-int-long-int-int-int-">writeLbHeader</a></span>(java.nio.ByteBuffer&nbsp;buffer,
              int&nbsp;off,
@@ -380,7 +365,7 @@ extends <a href="../../../../../../org/jlab/coda/emu/support/transport/DataChann
 <div class="block">Set the Load Balancer header data.</div>
 </td>
 </tr>
-<tr id="i17" class="rowColor">
+<tr id="i16" class="altColor">
 <td class="colFirst"><code>(package private) static void</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../org/jlab/coda/emu/support/transport/DataChannelImplUdpStream.html#writeReHeader-byte:A-int-int-boolean-boolean-int-int-int-int-">writeReHeader</a></span>(byte[]&nbsp;buffer,
              int&nbsp;offset,
@@ -395,7 +380,7 @@ extends <a href="../../../../../../org/jlab/coda/emu/support/transport/DataChann
  Write the reassembly header at the start of the given byte array.</div>
 </td>
 </tr>
-<tr id="i18" class="altColor">
+<tr id="i17" class="rowColor">
 <td class="colFirst"><code>(package private) static void</code></td>
 <td class="colLast"><code><span class="memberNameLink"><a href="../../../../../../org/jlab/coda/emu/support/transport/DataChannelImplUdpStream.html#writeReHeader-java.nio.ByteBuffer-int-int-boolean-boolean-int-int-int-int-">writeReHeader</a></span>(java.nio.ByteBuffer&nbsp;buffer,
              int&nbsp;offset,
@@ -805,62 +790,6 @@ extends <a href="../../../../../../org/jlab/coda/emu/support/transport/DataChann
 </dl>
 </li>
 </ul>
-<a name="writeErsapReHeader-byte:A-int-int-short-int-int-long-">
-<!--   -->
-</a>
-<ul class="blockList">
-<li class="blockList">
-<h4>writeErsapReHeader</h4>
-<pre>void&nbsp;writeErsapReHeader(byte[]&nbsp;buffer,
-                        int&nbsp;offset,
-                        int&nbsp;version,
-                        short&nbsp;dataId,
-                        int&nbsp;bufferOffset,
-                        int&nbsp;bufferLength,
-                        long&nbsp;tick)
-                 throws java.lang.Exception</pre>
-<div class="block"><p>
- Write the reassembly header, at the start of the given byte array,
- in the format used in ERSAP project.
- The first 16 bits go as ordered. The dataId is put in network byte order.
- The offset, length and tick are also put into network byte order.
- This is the new, version 2, RE header.</p>
-
- The difficulty with Java is that all integers are signed.
- But the interpretation of these integer values in the reassembly's C++ lib
- is that they are unsigned, so user beware.
-
- <pre>
-  protocol 'Version:4, Rsvd:12, Data-ID:16, Offset:32, Length:32, Tick:64'
-
-  0                   1                   2                   3
-  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |Version|        Rsvd           |            Data-ID            |
-  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |                         Buffer Offset                         |
-  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |                         Buffer Length                         |
-  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |                                                               |
-  +                             Tick                              +
-  |                                                               |
-  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
- </pre></div>
-<dl>
-<dt><span class="paramLabel">Parameters:</span></dt>
-<dd><code>buffer</code> - byte array in which to write.</dd>
-<dd><code>offset</code> - index in buffer to start writing.</dd>
-<dd><code>version</code> - version of meta data (should be 2).</dd>
-<dd><code>dataId</code> - data source id.</dd>
-<dd><code>bufferOffset</code> - byte offset into full buffer payload.</dd>
-<dd><code>bufferLength</code> - total length in bytes of full buffer payload.</dd>
-<dd><code>tick</code> - tick value.</dd>
-<dt><span class="throwsLabel">Throws:</span></dt>
-<dd><code>java.lang.Exception</code> - if offset &lt; 0 or buffer overflow.</dd>
-</dl>
-</li>
-</ul>
 <a name="expandBuffer-java.nio.ByteBuffer-int-int-">
 <!--   -->
 </a>
@@ -978,39 +907,45 @@ extends <a href="../../../../../../org/jlab/coda/emu/support/transport/DataChann
 </dl>
 </li>
 </ul>
-<a name="writeErsapReHeader-byte:A-int-int-boolean-boolean-short-int-long-">
+<a name="writeErsapReHeader-byte:A-int-int-short-int-int-long-">
 <!--   -->
 </a>
 <ul class="blockList">
 <li class="blockList">
 <h4>writeErsapReHeader</h4>
-<pre>static&nbsp;void&nbsp;writeErsapReHeader(byte[]&nbsp;buffer,
-                               int&nbsp;offset,
-                               int&nbsp;version,
-                               boolean&nbsp;first,
-                               boolean&nbsp;last,
-                               short&nbsp;dataId,
-                               int&nbsp;packetOffset,
-                               long&nbsp;tick)
-                        throws <a href="../../../../../../org/jlab/coda/emu/EmuException.html" title="class in org.jlab.coda.emu">EmuException</a></pre>
+<pre>void&nbsp;writeErsapReHeader(byte[]&nbsp;buffer,
+                        int&nbsp;offset,
+                        int&nbsp;version,
+                        short&nbsp;dataId,
+                        int&nbsp;bufferOffset,
+                        int&nbsp;bufferLength,
+                        long&nbsp;tick)
+                 throws <a href="../../../../../../org/jlab/coda/emu/EmuException.html" title="class in org.jlab.coda.emu">EmuException</a></pre>
 <div class="block"><p>
  Write the reassembly header, at the start of the given byte array,
  in the format used in ERSAP project.
  The first 16 bits go as ordered. The dataId is put in network byte order.
- The offset and tick are also put into network byte order.</p>
- </p>
+ The offset, length and tick are also put into network byte order.
+ This is the new, version 2, RE header.</p>
+
+ The difficulty with Java is that all integers are signed.
+ But the interpretation of these integer values in the reassembly's C++ lib
+ is that they are unsigned, so user beware.
+
  <pre>
-  protocol 'Version:4, Rsvd:10, First:1, Last:1, Data-ID:16, Offset:32'
+  protocol 'Version:4, Rsvd:12, Data-ID:16, Offset:32, Length:32, Tick:64'
 
   0                   1                   2                   3
   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |Version|        Rsvd       |F|L|            Data-ID            |
+  |Version|        Rsvd           |            Data-ID            |
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  |                  UDP Packet Offset                            |
+  |                         Buffer Offset                         |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  |                         Buffer Length                         |
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
   |                                                               |
-  +                              Tick                             +
+  +                             Tick                              +
   |                                                               |
   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  </pre></div>
@@ -1018,14 +953,13 @@ extends <a href="../../../../../../org/jlab/coda/emu/support/transport/DataChann
 <dt><span class="paramLabel">Parameters:</span></dt>
 <dd><code>buffer</code> - byte array in which to write.</dd>
 <dd><code>offset</code> - index in buffer to start writing.</dd>
-<dd><code>version</code> - version of meta data.</dd>
-<dd><code>first</code> - is this the first packet of a record/buffer being sent?</dd>
-<dd><code>last</code> - is this the last packet of a record/buffer being sent?</dd>
+<dd><code>version</code> - version of meta data (should be 2).</dd>
 <dd><code>dataId</code> - data source id.</dd>
-<dd><code>packetOffset</code> - packet sequence.</dd>
+<dd><code>bufferOffset</code> - byte offset into full buffer payload.</dd>
+<dd><code>bufferLength</code> - total length in bytes of full buffer payload.</dd>
 <dd><code>tick</code> - tick value.</dd>
 <dt><span class="throwsLabel">Throws:</span></dt>
-<dd><code><a href="../../../../../../org/jlab/coda/emu/EmuException.html" title="class in org.jlab.coda.emu">EmuException</a></code> - if offset &lt; 0 or buffer overflow.</dd>
+<dd><code><a href="../../../../../../org/jlab/coda/emu/EmuException.html" title="class in org.jlab.coda.emu">EmuException</a></code> - if offset &lt; 0 or too large.</dd>
 </dl>
 </li>
 </ul>
