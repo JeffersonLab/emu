@@ -267,7 +267,7 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
         }
 
         if (useErsapReHeader) {
-            RE_HEADER_BYTES = 16;
+            RE_HEADER_BYTES = 20;
             HEADER_BYTES = RE_HEADER_BYTES;
         }
 
@@ -795,63 +795,6 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
                                              buffer.get(off+16), buffer.get(off+17),
                                              buffer.get(off+18), buffer.get(off+19),
                                              ByteOrder.BIG_ENDIAN);
-    }
-
-
-    /**
-     * <p>
-     * Write the reassembly header, at the start of the given byte array,
-     * in the format used in ERSAP project.
-     * The first 16 bits go as ordered. The dataId is put in network byte order.
-     * The offset, length and tick are also put into network byte order.
-     * This is the new, version 2, RE header.</p>
-     *
-     * The difficulty with Java is that all integers are signed.
-     * But the interpretation of these integer values in the reassembly's C++ lib
-     * is that they are unsigned, so user beware.
-     *
-     * <pre>
-     *  protocol 'Version:4, Rsvd:12, Data-ID:16, Offset:32, Length:32, Tick:64'
-     *
-     *  0                   1                   2                   3
-     *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     *  |Version|        Rsvd           |            Data-ID            |
-     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     *  |                         Buffer Offset                         |
-     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     *  |                         Buffer Length                         |
-     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     *  |                                                               |
-     *  +                             Tick                              +
-     *  |                                                               |
-     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     * </pre>
-     *
-     * @param buffer        byte array in which to write.
-     * @param offset        index in buffer to start writing.
-     * @param version       version of meta data (should be 2).
-     * @param dataId        data source id.
-     * @param bufferOffset  byte offset into full buffer payload.
-     * @param bufferLength  total length in bytes of full buffer payload.
-     * @param tick          tick value.
-     * @throws Exception    if offset &lt; 0 or buffer overflow.
-     */
-    void writeErsapReHeader(byte[] buffer, int offset,
-                                   int version, short dataId,
-                                   int bufferOffset, int bufferLength, long tick)
-            throws Exception {
-
-        if (offset < 0 || (offset + RE_HEADER_BYTES > buffer.length)) {
-            throw new Exception("offset arg < 0 or buf too small");
-        }
-
-        buffer[offset] = (byte) (version << 4);
-
-        ByteDataTransformer.toBytes(dataId, ByteOrder.BIG_ENDIAN, buffer, offset + 2);
-        ByteDataTransformer.toBytes(bufferOffset, ByteOrder.BIG_ENDIAN, buffer, offset + 4);
-        ByteDataTransformer.toBytes(bufferLength, ByteOrder.BIG_ENDIAN, buffer, offset + 8);
-        ByteDataTransformer.toBytes(tick, ByteOrder.BIG_ENDIAN, buffer, offset + 12);
     }
 
 
@@ -1825,7 +1768,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
         }
 
 
-}
+    }
 
 
 
@@ -2254,55 +2197,115 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
      * Write the reassembly header, at the start of the given byte array,
      * in the format used in ERSAP project.
      * The first 16 bits go as ordered. The dataId is put in network byte order.
-     * The offset and tick are also put into network byte order.</p>
-     * </p>
+     * The offset, length and tick are also put into network byte order.
+     * This is the new, version 2, RE header.</p>
+     *
+     * The difficulty with Java is that all integers are signed.
+     * But the interpretation of these integer values in the reassembly's C++ lib
+     * is that they are unsigned, so user beware.
+     *
      * <pre>
-     *  protocol 'Version:4, Rsvd:10, First:1, Last:1, Data-ID:16, Offset:32'
+     *  protocol 'Version:4, Rsvd:12, Data-ID:16, Offset:32, Length:32, Tick:64'
      *
      *  0                   1                   2                   3
      *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     *  |Version|        Rsvd       |F|L|            Data-ID            |
+     *  |Version|        Rsvd           |            Data-ID            |
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-     *  |                  UDP Packet Offset                            |
+     *  |                         Buffer Offset                         |
+     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *  |                         Buffer Length                         |
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      *  |                                                               |
-     *  +                              Tick                             +
+     *  +                             Tick                              +
      *  |                                                               |
      *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
      * </pre>
      *
      * @param buffer        byte array in which to write.
      * @param offset        index in buffer to start writing.
-     * @param version       version of meta data.
-     * @param first         is this the first packet of a record/buffer being sent?
-     * @param last          is this the last packet of a record/buffer being sent?
+     * @param version       version of meta data (should be 2).
      * @param dataId        data source id.
-     * @param packetOffset  packet sequence.
+     * @param bufferOffset  byte offset into full buffer payload.
+     * @param bufferLength  total length in bytes of full buffer payload.
      * @param tick          tick value.
-     * @throws EmuException if offset &lt; 0 or buffer overflow.
+     * @throws EmuException if offset &lt; 0 or too large.
      */
-    static void writeErsapReHeader(byte[] buffer, int offset,
-                                  int version, boolean first, boolean last,
-                                  short dataId, int packetOffset, long tick)
+    void writeErsapReHeader(byte[] buffer, int offset,
+                            int version, short dataId,
+                            int bufferOffset, int bufferLength, long tick)
             throws EmuException {
 
-        if (offset < 0 || (offset + 16 > buffer.length)) {
+        if (offset < 0 || (offset + RE_HEADER_BYTES > buffer.length)) {
             throw new EmuException("offset arg < 0 or buf too small");
         }
 
         buffer[offset] = (byte) (version << 4);
-        int fst = first ? 1 : 0;
-        int lst =  last ? 1 : 0;
-        buffer[offset + 1] = (byte) ((fst << 1) + lst);
 
         try {
             ByteDataTransformer.toBytes(dataId, ByteOrder.BIG_ENDIAN, buffer, offset + 2);
-            ByteDataTransformer.toBytes(packetOffset, ByteOrder.BIG_ENDIAN, buffer, offset + 4);
-            ByteDataTransformer.toBytes(tick, ByteOrder.BIG_ENDIAN, buffer, offset + 8);
+            ByteDataTransformer.toBytes(bufferOffset, ByteOrder.BIG_ENDIAN, buffer, offset + 4);
+            ByteDataTransformer.toBytes(bufferLength, ByteOrder.BIG_ENDIAN, buffer, offset + 8);
+            ByteDataTransformer.toBytes(tick, ByteOrder.BIG_ENDIAN, buffer, offset + 12);
         }
         catch (EvioException e) {/* never happen */}
     }
+
+
+//    /**
+//     * <p>
+//     * Write the reassembly header, at the start of the given byte array,
+//     * in the format used in ERSAP project.
+//     * The first 16 bits go as ordered. The dataId is put in network byte order.
+//     * The offset and tick are also put into network byte order.</p>
+//     * </p>
+//     * <pre>
+//     *  protocol 'Version:4, Rsvd:10, First:1, Last:1, Data-ID:16, Offset:32'
+//     *
+//     *  0                   1                   2                   3
+//     *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//     *  |Version|        Rsvd       |F|L|            Data-ID            |
+//     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//     *  |                  UDP Packet Offset                            |
+//     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//     *  |                                                               |
+//     *  +                              Tick                             +
+//     *  |                                                               |
+//     *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//     * </pre>
+//     *
+//     * @param buffer        byte array in which to write.
+//     * @param offset        index in buffer to start writing.
+//     * @param version       version of meta data.
+//     * @param first         is this the first packet of a record/buffer being sent?
+//     * @param last          is this the last packet of a record/buffer being sent?
+//     * @param dataId        data source id.
+//     * @param packetOffset  packet sequence.
+//     * @param tick          tick value.
+//     * @throws EmuException if offset &lt; 0 or buffer overflow.
+//     */
+//    static void writeErsapReHeader(byte[] buffer, int offset,
+//                                  int version, boolean first, boolean last,
+//                                  short dataId, int packetOffset, long tick)
+//            throws EmuException {
+//
+//        if (offset < 0 || (offset + 16 > buffer.length)) {
+//            throw new EmuException("offset arg < 0 or buf too small");
+//        }
+//
+//        buffer[offset] = (byte) (version << 4);
+//        int fst = first ? 1 : 0;
+//        int lst =  last ? 1 : 0;
+//        buffer[offset + 1] = (byte) ((fst << 1) + lst);
+//
+//        try {
+//            ByteDataTransformer.toBytes(dataId, ByteOrder.BIG_ENDIAN, buffer, offset + 2);
+//            ByteDataTransformer.toBytes(packetOffset, ByteOrder.BIG_ENDIAN, buffer, offset + 4);
+//            ByteDataTransformer.toBytes(tick, ByteOrder.BIG_ENDIAN, buffer, offset + 8);
+//        }
+//        catch (EvioException e) {/* never happen */}
+//    }
 
 
     /**
@@ -2354,6 +2357,8 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
         buffer.put(off+1, (byte)('B'));
         buffer.put(off+2, (byte)version);
         buffer.put(off+3, (byte)protocol);
+        buffer.put(off+4, (byte)0);
+        buffer.put(off+5, (byte)0);
         buffer.putShort(off+6, (short)entropy);
         buffer.putLong(off+8, tick);
         return 16;
@@ -2409,6 +2414,8 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
         buffer[off+1] = (byte) 'B';
         buffer[off+2] = (byte) version;
         buffer[off+3] = (byte) protocol;
+        buffer[off+4] = (byte) 0;
+        buffer[off+5] = (byte) 0;
         try {
             ByteDataTransformer.toBytes((short)entropy, ByteOrder.BIG_ENDIAN, buffer, off+6);
             ByteDataTransformer.toBytes(tick, ByteOrder.BIG_ENDIAN, buffer, off+8);
@@ -2556,7 +2563,7 @@ System.out.println("SocketSender thread told to return");
                         // - first the meta data for reassembly
                         // - second the actual data
 
-                        // If toLoadBalancer false, ignore all LB quantities:
+                        // If useEjfatLoadBalancer false, ignore all LB quantities:
                         // tick, entropy, protocol, and lbVersion
 
                         // Fast version overwrites part of incoming data buffer, but that's OK.
@@ -2571,13 +2578,13 @@ System.out.println("SocketSender thread told to return");
                                 recordId, id, reVersion,
                                 delay, debug, packetsSent);
 
-
-//                            sendPacketizedBufferSend(buf.array(), 0, buf.limit(),
-//                                                           packetStorage, maxUdpPayload,
-//                                                           outSocket, packet,
-//                                                           tick, entropy, lbProtocol, lbVersion,
-//                                                           recordId, id, reVersion,
-//                                                           delay, debug, packetsSent);
+//                            sendPacketizedBufferSend(
+//                                    buf.array(), 0, buf.limit(),
+//                                    packetStorage, maxUdpPayload,
+//                                    outSocket, packet,
+//                                    tick, entropy, lbProtocol, lbVersion,
+//                                    recordId, id, reVersion,
+//                                    delay, debug, packetsSent);
 
                         // Increment record id or tick depending on if we're using VTP or Ersap RE header
                         recordId++;
@@ -2724,7 +2731,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
          * @param packetsSent    Array with one element.
          *                       Used to return the number of packets sent over network
          *                              (valid even if error returned).
-         * @throws IOException if error sending packets
+         * @throws Exception if error sending or writing packets
          */
         void sendPacketizedBufferFast(byte[] dataBuffer, int readFromIndex, int dataLen,
                                       byte[] packetStorage, int maxUdpPayload,
@@ -2733,12 +2740,16 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                                       int recordId, int dataId, int reVersion,
                                       int delay, boolean debug,
                                       int[] packetsSent)
-                        throws IOException {
+                        throws Exception {
 
             int bytesToWrite, sentPackets = 0;
 
             // How many total packets are we sending? Round up.
             int totalPackets = (dataLen + maxUdpPayload - 1)/maxUdpPayload;
+
+            // Offset for the packet currently being sent (into full buffer)
+            int localOffset = 0;
+            int fullLen = dataLen;
 
             // Index into packetStorage to write
             int writeToIndex = 0;
@@ -2774,7 +2785,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                 // Write LB meta data into buffer
                 try {
                     if (useEjfatLoadBalancer) {
-                        // Write LB meta data into byte array
+                        // Write LB metadata into byte array
 //logger.info("    DataChannel UDP stream: LB header: tick = " + tick + ", entropy = " + entropy);
                         writeLbHeader(packetStorage, writeToIndex, tick, lbVersion, lbProtocol, entropy);
                     }
@@ -2782,8 +2793,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                     // Write RE meta data into byte array
                     if (useErsapReHeader) {
                         writeErsapReHeader(packetStorage, writeToIndex + LB_HEADER_BYTES,
-                                           reVersion, veryFirstPacket, veryLastPacket, (short)dataId,
-                                           packetCounter++, tick);
+                                           reVersion, (short)dataId, localOffset, fullLen, tick);
                     }
                     else {
                         writeReHeader(packetStorage, writeToIndex + LB_HEADER_BYTES,
@@ -2827,13 +2837,14 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                     catch (InterruptedException e) {}
                 }
 
+                localOffset += bytesToWrite;
                 dataLen -= bytesToWrite;
                 writeToIndex += bytesToWrite;
                 readFromIndex += bytesToWrite;
                 veryFirstPacket = false;
                 firstLoop = false;
 
-                if (debug) System.out.println("Sent pkt " + (packetCounter - 1) +
+                if (debug) System.out.println("Sent pkt " + (sentPackets - 1) +
                                               ", remaining bytes = " + dataLen + "\n");
             }
 
@@ -2891,13 +2902,15 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                                       int[] packetsSent)
                 throws IOException {
 
-            int bytesToWrite, sentPackets = 0;
-
+            int sentPackets = 0;
+            int bytesToWrite, totalDataBytesSent = 0, remainingBytes = dataLen;
             // How many total packets are we sending? Round up.
             int totalPackets = (dataLen + maxUdpPayload - 1)/maxUdpPayload;
 
+            // Offset for the packet currently being sent (into full buffer)
+            int localOffset = 0;
+
             // The very first packet goes in here
-            //byte[] packetStorage = new byte[maxUdpPayload + HEADER_BYTES];
             // Index into packetStorage to write
             int writeToIndex = 0;
 
@@ -2906,23 +2919,33 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
             // If this packet is the very last packet sent for this data buffer
             boolean veryLastPacket  = false;
 
+            int lbHeaderSize   = LB_HEADER_BYTES;
+            int allHeadersSize = HEADER_BYTES;
+            // If we bypass LB, don't include that header
+            if (!useEjfatLoadBalancer) {
+                lbHeaderSize   = 0;
+                allHeadersSize = RE_HEADER_BYTES;
+            }
+
             int packetCounter = 0;
             // Use this flag to allow transmission of a single zero-length buffer
             boolean firstLoop = true;
 
-            while (firstLoop || dataLen > 0) {
+            while (firstLoop || remainingBytes > 0) {
+
+                firstLoop = false;
 
                 // The number of regular data bytes to write into this packet
-                bytesToWrite = dataLen > maxUdpPayload ? maxUdpPayload : dataLen;
+                bytesToWrite = remainingBytes > maxUdpPayload ? maxUdpPayload : remainingBytes;
 
                 // Is this the very last packet for all buffers?
-                if (bytesToWrite == dataLen) {
+                if (bytesToWrite == remainingBytes) {
                     veryLastPacket = true;
                 }
 
-                if (debug) System.out.println("Send " + bytesToWrite +
-                        " bytes, very first = " + veryFirstPacket +
-                        ", very last = " + veryLastPacket);
+                if (debug) System.out.println("bytesToWrite " + bytesToWrite +
+                                              ", remaining " + remainingBytes +
+                                              ", max payld = " + maxUdpPayload);
 
                 // Write LB meta data into buffer
                 try {
@@ -2933,22 +2956,20 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
 
                     // Write RE meta data into byte array
                     if (useErsapReHeader) {
-                        writeErsapReHeader(packetStorage, writeToIndex + LB_HEADER_BYTES,
-                                reVersion, veryFirstPacket, veryLastPacket, (short)dataId,
-                                packetCounter++, tick);
+                        writeErsapReHeader(packetStorage, writeToIndex + lbHeaderSize,
+                                reVersion, (short)dataId, localOffset, dataLen, tick);
                     }
                     else {
-                        writeReHeader(packetStorage, writeToIndex + LB_HEADER_BYTES,
+                        writeReHeader(packetStorage, writeToIndex + lbHeaderSize,
                                 dataId, veryFirstPacket, veryLastPacket, recordId, reVersion,
                                 totalPackets, packetCounter++);
                     }
-
                 }
                 catch (EmuException e) {/* never happen */}
 
                 // This is where and how many bytes to write for data
                 System.arraycopy(dataBuffer, readFromIndex,
-                                 packetStorage, writeToIndex + HEADER_BYTES,
+                                 packetStorage, writeToIndex + allHeadersSize,
                                  bytesToWrite);
 
                 // "UNIX Network Programming" points out that a connect call made on a UDP client side socket
@@ -2959,7 +2980,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                 // In our case, the calling function connected the socket, so we call "send".
 
                 // Send message to receiver
-                udpPacket.setData(packetStorage, writeToIndex, bytesToWrite + HEADER_BYTES);
+                udpPacket.setData(packetStorage, writeToIndex, bytesToWrite + allHeadersSize);
                 clientSocket.send(udpPacket);
                 sentPackets++;
 
@@ -2971,18 +2992,18 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                     catch (InterruptedException e) {}
                 }
 
-                dataLen -= bytesToWrite;
-                readFromIndex += bytesToWrite;
+                localOffset        += bytesToWrite;
+                totalDataBytesSent += bytesToWrite;
+                remainingBytes     -= bytesToWrite;
+                readFromIndex      += bytesToWrite;
                 veryFirstPacket = false;
-                firstLoop = false;
 
-                if (debug) System.out.println("Sent pkt " + (packetCounter - 1) +
-                        ", remaining bytes = " + dataLen + "\n");
+                if (debug) System.out.println("Sent pkt " + (sentPackets - 1) +
+                                              ", total bytes " + totalDataBytesSent +
+                                              ", remaining bytes = " + remainingBytes + "\n");
             }
 
             packetsSent[0] = sentPackets;
-
-            if (debug) System.out.println("Set next offset to = " + packetCounter);
         }
 
 
