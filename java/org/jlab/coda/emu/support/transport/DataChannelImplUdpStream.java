@@ -2570,21 +2570,21 @@ System.out.println("SocketSender thread told to return");
                         // It's not used after this.
 
 //logger.info("    DataChannel UDP stream out: " + name + " - send packetized buffer of len " + buf.limit());
-//                        sendPacketizedBufferFast(
-//                                buf.array(), 0, buf.limit(),
-//                                packetStorage, maxUdpPayload,
-//                                outSocket, packet,
-//                                tick, entropy, lbProtocol, lbVersion,
-//                                recordId, id, reVersion,
-//                                delay, debug, packetsSent);
+                        sendPacketizedBufferFast(
+                                buf.array(), 0, buf.limit(),
+                                packetStorage, maxUdpPayload,
+                                outSocket, packet,
+                                tick, entropy, lbProtocol, lbVersion,
+                                recordId, id, reVersion,
+                                delay, debug, packetsSent);
 
-                            sendPacketizedBufferSend(
-                                    buf.array(), 0, buf.limit(),
-                                    packetStorage, maxUdpPayload,
-                                    outSocket, packet,
-                                    tick, entropy, lbProtocol, lbVersion,
-                                    recordId, id, reVersion,
-                                    delay, debug, packetsSent);
+//                            sendPacketizedBufferSend(
+//                                    buf.array(), 0, buf.limit(),
+//                                    packetStorage, maxUdpPayload,
+//                                    outSocket, packet,
+//                                    tick, entropy, lbProtocol, lbVersion,
+//                                    recordId, id, reVersion,
+//                                    delay, debug, packetsSent);
 
                         // Increment record id or tick depending on if we're using VTP or Ersap RE header
                         recordId++;
@@ -2998,7 +2998,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                 readFromIndex      += bytesToWrite;
                 veryFirstPacket = false;
 
-                if (true) System.out.println("Sent pkt " + (sentPackets - 1) +
+                if (debug) System.out.println("Sent pkt " + (sentPackets - 1) +
                                               ", total bytes " + totalDataBytesSent +
                                               ", remaining bytes = " + remainingBytes + "\n");
             }
