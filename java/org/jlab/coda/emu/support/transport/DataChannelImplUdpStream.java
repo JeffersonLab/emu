@@ -2844,7 +2844,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                 veryFirstPacket = false;
                 firstLoop = false;
 
-                if (sentPackets % 10000 == 0) System.out.println("Fast sent pkt " + (sentPackets - 1) +
+                if (true) System.out.println("Fast sent pkt " + (sentPackets - 1) +
                                               ", remaining bytes = " + dataLen + "\n");
             }
 
