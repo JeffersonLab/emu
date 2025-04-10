@@ -44,11 +44,6 @@ Documentation on GitHub:
 
 * [All Documentation](https://jeffersonlab.github.io/emu)
 
-Documentation on the home page:
-
-* [User's Guide PDF](https://coda.jlab.org/drupal/content/emu-33-users-guide)
-* [Javadoc for Java Library](https://coda.jlab.org/drupal/content/emu-33-javadoc)
-
 ----------------------------
 
 # **Java**
@@ -56,10 +51,6 @@ Documentation on the home page:
 ----------------------------
 
 One can download the Java 8, pre-built emu-3.3.jar file from either:
-
-  [Jar File @ Home Page](https://coda.jlab.org/drupal/content/emu-33)
- 
-or
 
   [Jar File @ GitHub](https://github.com/JeffersonLab/emu/blob/emu-3.3/java/jars/java8/emu-3.3.jar)
 
