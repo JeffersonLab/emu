@@ -1733,6 +1733,7 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
                     if (takeStats) {
                         stats.builtBuffers++;
                     }
+                    System.out.println("publish tick " + tick + ", buf cnt " + stats.builtBuffers);
 
                     itemBB.limit(totalBytesRead);
                     bbSupply.publish(item);
@@ -2844,7 +2845,7 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
                 veryFirstPacket = false;
                 firstLoop = false;
 
-                if (true) System.out.println("Fast sent pkt " + (sentPackets - 1) +
+                if (debug) System.out.println("Fast sent pkt " + (sentPackets - 1) +
                                               ", remaining bytes = " + dataLen + "\n");
             }
 
