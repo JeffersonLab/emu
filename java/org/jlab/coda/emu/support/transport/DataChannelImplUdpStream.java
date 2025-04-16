@@ -26,12 +26,15 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.AsynchronousCloseException;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
 import org.jlab.coda.emu.support.data.tuple.*;
+
+import static org.jlab.coda.jevio.ByteDataTransformer.toBytes;
 
 
 /**
@@ -84,6 +87,15 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
 
     /** Address to send packets to. */
     private InetAddress destAddr;
+
+    /** Address to send sync packets to. */
+    private InetAddress syncAddr;
+
+    /** UDP port to send sync packets to. */
+    private int syncPort;
+
+    /** UDP socket to send sync packets to. */
+    DatagramSocket syncSocket;
 
     /** UDP send buffer size. */
     private int sendBufSize;
@@ -369,6 +381,44 @@ public class DataChannelImplUdpStream extends DataChannelAdapter {
                 LB_HEADER_BYTES = 16;
                 HEADER_BYTES = RE_HEADER_BYTES + LB_HEADER_BYTES;
 logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
+
+
+                // Get IP addr and port to send UDP sync messages to LB's control plane
+                String syncAddrString = attributeMap.get("cpSyncAddr");
+                if (syncAddrString == null) {
+                    // No Control Plane IP address specified! Error!
+                    throw new DataTransportException("no control plane address (\"cpSyncAddr\") in config");
+                }
+
+                try {
+                    syncAddr = InetAddress.getByName(syncAddrString);
+                    syncSocket = new DatagramSocket();
+                }
+                catch (Exception e) {
+                    throw new DataTransportException("cannot find control plane's IP addr for syncs or cannot create UDP socket");
+                }
+
+                attribString = attributeMap.get("cpSyncPort");
+                if (attribString != null) {
+                    // No Control Plane IP port specified. In this case use a common default
+                    try {
+                        syncPort = Integer.parseInt(attribString);
+                        if (syncPort < 1025 || syncPort > 65535) {
+                            throw new DataTransportException("out of range control plane port (\"cpSyncPort\") in config");
+                        }
+                    }
+                    catch (NumberFormatException e) {
+                        throw new DataTransportException("improper format of control plane port (\"cpSyncPort\") in config");
+                    }
+                }
+                else {
+                    throw new DataTransportException("no control plane port (\"cpSyncPort\") in config");
+                }
+
+
+                // Start up thread to send syn messages?
+
+                logger.info("    Created sync UDP socket to " + syncAddrString + " port " + syncPort);
             }
 
             // Let's try 12MB buf by default, which will most likely get doubled to 24MB by the system
@@ -477,12 +527,19 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
             try {Thread.sleep(10);}
             catch (InterruptedException e) {}
 
-                if (dataInputThread != null) {
-                    dataInputThread.interrupt();
-                }
+            dataInputThread.interrupt();
 //logger.debug("    DataChannel UDP stream: end/reset(), interrupt input thread");
         }
 
+        if (dataOutputThread != null) {
+            dataOutputThread.sender.endThread();
+            if (useEjfatLoadBalancer) {
+                dataOutputThread.syncSender.endThread();
+            }
+
+            dataOutputThread.interrupt();
+//logger.debug("    DataChannel UDP stream: end/reset(), interrupt input thread");
+        }
     }
 
     
@@ -496,11 +553,22 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
 
 //logger.debug("    DataChannel UDP stream: end/reset(), joined parser/merger thread");
 
-            try {
-                dataInputThread.join(1000);
-            }
+            try {dataInputThread.join(1000);}
             catch (InterruptedException e) {}
 //logger.debug("    DataChannel UDP stream: end/reset(), joined input thread");
+        }
+
+        if (dataOutputThread != null) {
+            try {dataOutputThread.sender.join(1000);}
+            catch (InterruptedException e) {}
+
+            if (useEjfatLoadBalancer) {
+                try {dataOutputThread.syncSender.join(1000);}
+                catch (InterruptedException e) {}
+            }
+
+            try {dataOutputThread.join(1000);}
+            catch (InterruptedException e) {}
         }
     }
     
@@ -521,10 +589,21 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
 
         // Clean up
         if (dataInputThread != null) {
-            dataInputThread = null;
-            parserMergerThread = null;
             if (inSocket != null) inSocket.close();
+            parserMergerThread = null;
+            dataInputThread = null;
         }
+        
+        if (dataOutputThread != null) {
+            if (dataOutputThread.outSocket != null) {
+                dataOutputThread.outSocket.close();
+            }
+            if (useEjfatLoadBalancer && syncSocket != null) {
+                syncSocket.close();
+            }
+            dataOutputThread = null;
+        }
+
         logger.info("    DataChannel UDP stream: buffers reassembled = " + buffersReassembled);
 
         channelState = CODAState.DOWNLOADED;
@@ -544,9 +623,19 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
 
         // Clean up
         if (dataInputThread != null) {
-            dataInputThread = null;
-            parserMergerThread = null;
             if (inSocket != null) inSocket.close();
+            parserMergerThread = null;
+            dataInputThread = null;
+        }
+
+        if (dataOutputThread != null) {
+            if (dataOutputThread.outSocket != null) {
+                dataOutputThread.outSocket.close();
+            }
+            if (useEjfatLoadBalancer && syncSocket != null) {
+                syncSocket.close();
+            }
+            dataOutputThread = null;
         }
 
         logger.info("    DataChannel UDP stream: buffers reassembled = " + buffersReassembled);
@@ -554,17 +643,6 @@ logger.info("    DataChannel UDP stream: total header bytes = " + HEADER_BYTES);
         errorMsg.set(null);
         channelState = CODAState.CONFIGURED;
     }
-
-
-//    /**
-//     * For input channel, start the DataInputHelper thread which takes Evio
-//     * file-format data, parses it, puts the parsed Evio banks into the ring buffer.
-//     */
-//    private final void startInputThread() {
-//        dataInputThread = new DataInputHelper();
-//        dataInputThread.start();
-//        dataInputThread.waitUntilStarted();
-//    }
 
 
     /**
@@ -2135,8 +2213,8 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
         int word2 = (sequence & 0xffff) | (totalPackets << 16);
 
         try {
-            ByteDataTransformer.toBytes(word1, ByteOrder.BIG_ENDIAN, buffer, offset);
-            ByteDataTransformer.toBytes(word2, ByteOrder.BIG_ENDIAN, buffer, offset+4);
+            toBytes(word1, ByteOrder.BIG_ENDIAN, buffer, offset);
+            toBytes(word2, ByteOrder.BIG_ENDIAN, buffer, offset+4);
         }
         catch (EvioException e) {/* never happen */}
     }
@@ -2243,10 +2321,10 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
         buffer[offset] = (byte) (version << 4);
 
         try {
-            ByteDataTransformer.toBytes(dataId, ByteOrder.BIG_ENDIAN, buffer, offset + 2);
-            ByteDataTransformer.toBytes(bufferOffset, ByteOrder.BIG_ENDIAN, buffer, offset + 4);
-            ByteDataTransformer.toBytes(bufferLength, ByteOrder.BIG_ENDIAN, buffer, offset + 8);
-            ByteDataTransformer.toBytes(tick, ByteOrder.BIG_ENDIAN, buffer, offset + 12);
+            toBytes(dataId, ByteOrder.BIG_ENDIAN, buffer, offset + 2);
+            toBytes(bufferOffset, ByteOrder.BIG_ENDIAN, buffer, offset + 4);
+            toBytes(bufferLength, ByteOrder.BIG_ENDIAN, buffer, offset + 8);
+            toBytes(tick, ByteOrder.BIG_ENDIAN, buffer, offset + 12);
         }
         catch (EvioException e) {/* never happen */}
     }
@@ -2417,11 +2495,74 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
         buffer[off+4] = (byte) 0;
         buffer[off+5] = (byte) 0;
         try {
-            ByteDataTransformer.toBytes((short)entropy, ByteOrder.BIG_ENDIAN, buffer, off+6);
-            ByteDataTransformer.toBytes(tick, ByteOrder.BIG_ENDIAN, buffer, off+8);
+            toBytes((short)entropy, ByteOrder.BIG_ENDIAN, buffer, off+6);
+            toBytes(tick, ByteOrder.BIG_ENDIAN, buffer, off+8);
         }
         catch (EvioException e) {/* never happen */}
         return 16;
+    }
+
+
+    /**
+     * <p>
+     * Set the data for a synchronization message sent directly to the load balancer.
+     * The first 3 fields go as ordered. The srcId, evtNum, evtRate and time are all
+     * put into network byte order.</p>
+     *
+     * The difficulty with Java is that all integers are signed.
+     * But the interpretation of these integer values in the reassembly's C++ lib
+     * is that they are unsigned, so user beware.
+     *
+     * <pre>
+     *  protocol 'Version:4, Rsvd:12, Data-ID:16, Offset:32, Length:32, Tick:64'
+     *
+     *    0                   1                   2                   3
+     *    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+     *    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *    |       L       |       C       |    Version    |      Rsvd     |
+     *    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *    |                           EventSrcId                          |
+     *    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *    |                                                               |
+     *    +                          EventNumber                          +
+     *    |                                                               |
+     *    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *    |                         AvgEventRateHz                        |
+     *    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     *    |                                                               |
+     *    +                          UnixTimeNano                         +
+     *    |                                                               |
+     *    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     * </pre>
+     *
+     * @param buffer   buffer in which to write the data.
+     * @param off      offset into buffer to write.
+     * @param version  version of this software.
+     * @param srcId    id number of this data source.
+     * @param evtNum   unsigned 64 bit event number used to tell the load balancer
+     *                 which backend host to direct the packet to. This message
+     *                 is telling the load balancer that this application has
+     *                 already sent this, latest, event.
+     * @param evtRate  in Hz, the rate this application is sending events
+     *                 to the load balancer (0 if unknown).
+     * @param nanos    at what unix time in nanoseconds was this message sent (0 if unknown).
+     */
+    static void setSyncData(byte[] buffer, int off, int version, int srcId,
+                            long evtNum, int evtRate, long nanos) throws Exception {
+
+        if (off < 0 || (off + 28 > buffer.length)) {
+            throw new Exception("offset arg < 0 or buf too small");
+        }
+
+        buffer[off]   = (byte) 'L';
+        buffer[off+1] = (byte) 'C';
+        buffer[off+2] = (byte) version;
+        buffer[off+3] = 0;
+
+        toBytes(srcId,   ByteOrder.BIG_ENDIAN, buffer, off+4);
+        toBytes(evtNum,  ByteOrder.BIG_ENDIAN, buffer, off+8);
+        toBytes(evtRate, ByteOrder.BIG_ENDIAN, buffer, off+16);
+        toBytes(nanos,   ByteOrder.BIG_ENDIAN, buffer, off+20);
     }
 
 
@@ -2463,6 +2604,9 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
         /** Sender threads to send data over network. */
         private final SocketSender sender;
 
+        /** Thread to send syncs to control plane over network. */
+        private SyncSender syncSender;
+
         /** ByteBufferSupply for each sender socket. */
         private final ByteBufferSupply bbOutSupply;
 
@@ -2471,8 +2615,8 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
 
         private int maxUdpPayload;
 
-        private long tick;
-        private int entropy;
+        private volatile long sentTick = 0L;
+        private int entropy = 0;
 
 
         /** When regulating output buffer flow, the current
@@ -2486,8 +2630,107 @@ System.out.println("Internal error: got packet with no data, buf's unused bytes 
 
 
         /**
+         * This class is a separate thread used to write sync messages
+         * to an EJFAT control plane over a UDP socket.
+         * Note: as of 4/16/2025, this class has not been tested.
+         */
+        private final class SyncSender extends Thread {
+
+            /** Boolean used to kill this thread. */
+            private volatile boolean killThd;
+
+            // Socket for sending sync message to CP if output channel
+            private final byte[] syncStore = new byte[28];
+
+            private final InetAddress syncAddr;
+            private final int syncPort;
+            private DatagramPacket syncPacket;
+
+            private int srcId;
+
+
+            SyncSender(InetAddress addr, int port, int sourceId) {
+
+                super(emu.getThreadGroup(), name() + "_sync_sender");
+
+                syncAddr = addr;
+                syncPort = port;
+                srcId    = sourceId;
+                syncPacket = new DatagramPacket(syncStore, 28, syncAddr, syncPort);
+
+                logger.info("SyncSender: constructed SyncSender thread");
+            }
+
+
+            /**
+             * Kill this thread which is sending messages/data to other end of emu socket.
+             */
+            final void endThread() {
+                System.out.println("SyncSender: killThread, set flag, interrupt");
+                killThd = true;
+                this.interrupt();
+            }
+
+
+            /**
+             * Send the sync message every second.
+             */
+            public void run() {
+                boolean debug = false;
+                int evtRate;
+                long deltaT;
+                long curSentTick, prevSentTick = sentTick;
+
+                Instant instant = Instant.now();
+                long startTimeNanoos = instant.getEpochSecond() * 1000_000_000 + instant.getNano();
+
+                while (true) {
+                    if (killThd) {
+                        System.out.println("SyncSender thread told to return");
+                        return;
+                    }
+
+                    try {
+                        // send once a second
+                        Thread.sleep(1000);
+
+                        instant.now();
+                        long curTimeNanoos = instant.getEpochSecond() * 1000_000_000 + instant.getNano();
+                        deltaT = curTimeNanoos - startTimeNanoos;
+                        startTimeNanoos = curTimeNanoos;
+
+                        // Calculate instantaneous buf or event rate in Hz.
+                        // The number of buffers sent is the same as the "sentTick" value.
+                        // Freeze its value for these calculations.
+                        curSentTick = sentTick;
+                        evtRate = (int) ((curSentTick - prevSentTick) / (deltaT / 1000_000_000));
+                        prevSentTick = curSentTick;
+
+                        // Send sync message to control plane
+                        if (debug) System.out.println("sync: tick " + curSentTick + ", evtRate " + evtRate + "\n\n");
+
+                        // The tick (volatile) is updated by the SocketSender thread
+                        setSyncData(syncStore, 0, lbVersion, srcId, curSentTick, evtRate, curTimeNanoos);
+                        syncSocket.send(syncPacket);
+                    }
+                    catch (InterruptedException e) {
+                        System.out.println("SyncSender thread interrupted");
+                        return;
+                    }
+                    catch (Exception e) {
+                        e.printStackTrace();
+                        channelState = CODAState.ERROR;
+                        emu.setErrorState("DataChannel UDP sync stream out: " + e.getMessage());
+                        return;
+                    }
+                }
+            }
+        }
+
+
+        /**
          * This class is a separate thread used to write filled data
-         * buffers over the UDP socket.
+         * buffers over a UDP socket.
          */
         private final class SocketSender extends Thread {
 
@@ -2552,9 +2795,9 @@ System.out.println("SocketSender thread told to return");
 //logger.info("    DataChannel UDP stream out: get BB from BBsupply");
                         ByteBufferItem item = supply.consumerGet();
                         ByteBuffer buf = item.getBufferAsIs();
-                        boolean isBuildable = item.getUserInt() == 1;
                         isEnd = item.getUserBoolean();
 
+                        // Filled below, but value is not used
                         packetsSent[0] = 0;
 
 //Utilities.printBuffer(buf, 0, 40, "PRESTART EVENT, buf lim = " + buf.limit());
@@ -2574,7 +2817,7 @@ System.out.println("SocketSender thread told to return");
                                 buf.array(), 0, buf.limit(),
                                 packetStorage, maxUdpPayload,
                                 outSocket, packet,
-                                tick, entropy, lbProtocol, lbVersion,
+                                sentTick, entropy, lbProtocol, lbVersion,
                                 recordId, id, reVersion,
                                 delay, debug, packetsSent);
 
@@ -2588,7 +2831,7 @@ System.out.println("SocketSender thread told to return");
 
                         // Increment record id or tick depending on if we're using VTP or Ersap RE header
                         recordId++;
-                        tick++;
+                        sentTick++;
 
                         // Run callback saying we got and are done with end event
                         if (isEnd) {
@@ -2662,6 +2905,12 @@ System.out.println("DataOutputHelper constr: making BB supply of 16 bufs @ bytes
             // Start up sender thread
             sender = new SocketSender(bbOutSupply, destAddr, port);
             sender.start();
+
+            if (useEjfatLoadBalancer) {
+                // Start up thread sending sync messages to control plane every 1 sec
+                syncSender = new SyncSender(syncAddr, syncPort, id);
+                syncSender.start();
+            }
 
             // Create writer to write events into file format
             try {
