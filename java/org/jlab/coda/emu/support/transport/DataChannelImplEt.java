@@ -1775,6 +1775,7 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up a
 
                 int bytesToEtBuf, ringItemSize=0, banksInEtBuf, myRecordId;
                 int etSize = (int) etSystem.getEventSize();
+                int doubleEvioRecordHeaderBytes = 2*RecordHeader.HEADER_SIZE_BYTES;
                 boolean etEventInitialized, isUserOrControl=false;
                 boolean isUser=false, isControl=false;
                 boolean gotPrestart=false;
@@ -1916,8 +1917,8 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up a
                                 }
 
                                 // Allow for the possibility of having to write
-                                // 2 block headers in addition to this evio event.
-                                ringItemSize = ringItem.getTotalBytes() + 64;
+                                // 2 record headers in addition to this evio event.
+                                ringItemSize = ringItem.getTotalBytes() + doubleEvioRecordHeaderBytes;
                             }
 
                             //------------------------------------------------
