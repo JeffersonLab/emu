@@ -53,7 +53,7 @@ jobs:
 
       # download the doc files, most of which are generated above
       - name: Download Output Directory
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: doc-files
           path: doc-3.3
