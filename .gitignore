@@ -9,3 +9,6 @@
 coda.pyc
 build/
 doc/javadoc/
+
+# Ignore cool_home, if any inside
+cool_home/
