@@ -1,0 +1,13 @@
+org.jlab.coda.emu
+org.jlab.coda.emu.modules
+org.jlab.coda.emu.support.codaComponent
+org.jlab.coda.emu.support.configurer
+org.jlab.coda.emu.support.control
+org.jlab.coda.emu.support.data
+org.jlab.coda.emu.support.logger
+org.jlab.coda.emu.support.messaging
+org.jlab.coda.emu.support.transport
+org.jlab.coda.emu.support.ui
+org.jlab.coda.emu.support.ui.log
+org.jlab.coda.emu.test
+org.jlab.coda.emu.test.blast
