@@ -9,13 +9,14 @@ contain a CODA (CEBAF Online Data Acquisition) software component such as and ev
 or an event recorder. The EMU not only handles the module - which provides the main
 functionality - but also all the communication channels into and out of the module.
 
-It was written by Carl Timmer of the Data Acquisition group of the
-Thomas Jefferson National Accelerator Facility.
+EMU is currently maintained by Jon Zarling in the EPSCI group (jzarling@jlab.org). It was 
+written by Carl Timmer of the Data Acquisition group of the Thomas Jefferson National 
+Accelerator Facility.
 
 This software runs on Linux and Mac OSX.
 
 You must install Java version 8 or higher if you plan to compile
-the ET java code and run it. If you're using the jar file from the CODA
+the EMU java code and run it. If you're using the jar file from the CODA
 website, Java 8 or higher is necessary since it was compiled with that version.
 
 ----------------------------
@@ -55,12 +56,8 @@ Documentation on the home page:
 
 ----------------------------
 
-One can download the Java 8, pre-built emu-3.3.jar file from either:
-
-  [Jar File @ Home Page](https://coda.jlab.org/drupal/content/emu-33)
+One can download the Java 8, pre-built emu-3.3.jar file from:
  
-or
-
   [Jar File @ GitHub](https://github.com/JeffersonLab/emu/blob/emu-3.3/java/jars/java8/emu-3.3.jar)
 
 One can find the pre-built emu-3.3.jar file in the repository in the java/jars/java8
@@ -71,51 +68,26 @@ In any case, put the jar file into your classpath and run your java application.
 If you're using the pre-built jar file, Java version 8 or higher is necessary since
 it was compiled with that version. Also, when generating it, it’s advisable to use
 Java version 8 or higher since all other pre-built CODA jar files have been compiled with Java 8.
-If you wish to recompile the java part of ET, ant must be installed
-on your system (http://ant.apache.org):
-  
-    cd <et dir>
-    ant
-
-To get a list of options with ant, type _**ant help**_:
-
-    help: 
-        [echo] Usage: ant [ant options] <target1> [target2 | target3 | ...]
-    
-        [echo]      targets:
-        [echo]      help        - print out usage
-        [echo]      env         - print out build file variables' values
-        [echo]      compile     - compile java files
-        [echo]      clean       - remove class files
-        [echo]      cleanall    - remove all generated files
-        [echo]      jar         - compile and create jar file
-        [echo]      install     - create jar file and install into 'prefix'
-        [echo]                    if given on command line by -Dprefix=dir',
-        [echo]                    else install into CODA if defined
-        [echo]      uninstall   - remove jar file previously installed into 'prefix'
-        [echo]                    if given on command line by -Dprefix=dir',
-        [echo]                    else installed into CODA if defined
-        [echo]      all         - clean, compile and create jar file
-        [echo]      javadoc     - create javadoc documentation
-        [echo]      developdoc  - create javadoc documentation for developer
-        [echo]      undoc       - remove all javadoc documentation
-        [echo]      prepare     - create necessary directories
 
 
-To generate a new EMU jar file, execute
+To build a new jar file do:
 
-    ant jar
-    
-which will create the file and place it in build/lib.
+	./gradlew
+The newly created jar file will be places in `build/lib/`. To change java version
 
-Included in the java/jars subdirectory are all auxiliary jar files used
-by the GUI graphics. These are installed when executing
+In addition to standard gradle options, the following commands can be run:
 
-    ant install
+- `./gradlew env` prints variables and paths used for building and installation
+- `./gradlew javadoc` create javadoc documentation 
+- `./gradlew developdoc` create javadoc documentation for developers 
+- `./gradlew undoc` remove all javadoc documentation 
+- `./gradlew install -Pprefix=/your/install/path` create javadoc documentation for developers 
+- `./gradlew uninstall` remove jar file previously installed into `prefix`, if given on command line by `-Dprefix=dir`. Else uninstall from `$CODA` if defined.
 
-and uninstalled when executing
-    
-    ant uninstall
+To see a full list of options, run `./gradlew tasks`. To change java versions, edit the line 
+
+	toolchain { languageVersion.set(JavaLanguageVersion.of(8)) }
+ with desired java version in the file `build.gradle.kts`.
 
 
 ----------------------------
@@ -133,18 +105,6 @@ doc/usersGuide for pdf and Microsoft Word format documents.
 Some of the documentation is in the source code itself and must be generated
 and placed into its own directory.
 The java code is documented with, of course, javadoc.
-
-To generate all the these docs, from the top level directory type:
-
-    ant javadoc
-    
-for user-level documentation, or
-
-    ant developdoc
-    
-for developer-level documentation (which is one displayed on emu webpages). To remove it:
-
-    ant undoc
 
 ----------------------------
 
