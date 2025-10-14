@@ -15,11 +15,11 @@ jobs:
       # checkout the emu-3.3 branch
       - uses: actions/checkout@v5
 
-      - name: Set up JDK 15
+      - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           distribution: temurin
-          java-version: 15
+          java-version: 17
           
         # Setup gradle and build Java
       - name: Setup Gradle

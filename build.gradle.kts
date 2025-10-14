@@ -32,7 +32,7 @@ group = "org.jlab.coda"
 version = "3.3" // emu.version
 
 java {
-    toolchain { languageVersion.set(JavaLanguageVersion.of(15)) }
+    toolchain { languageVersion.set(JavaLanguageVersion.of(17)) }
     withJavadocJar()
 }
 

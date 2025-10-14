@@ -532,6 +532,12 @@ System.out.println("      DataChannel Et: can't create/attach to station " +
                 else {
                     System.out.println();
                 }
+                
+                // config.setConnectRemotely(true);
+
+                System.out.print("      DataChannel Et: maddrs = " + config.getMulticastAddrs() +
+                                 ", remotely? = " + config.isConnectRemotely());
+                System.out.print("      DataChannel Et: host = " + config.getHost() + ", port = " + config.getUdpPort());
 
                 etSystem.open();
 
