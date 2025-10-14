@@ -1,10 +1,10 @@
 # Automatic generation of javadoc files for EMU's Java code
-# on the emu-3.3 branch which will be copied and checked into the gh-pages branch.
+# on the main branch which will be copied and checked into the gh-pages branch.
 name: Documentation generation CI
 
 on:
   push:
-    branches: [ emu-3.3 ]
+    branches: [ main ]
 
 jobs:
   build:
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # checkout the emu-3.3 branch
+      # checkout the main branch
       - uses: actions/checkout@v5
 
       - name: Set up JDK 17

@@ -29,7 +29,7 @@ plugins {
 }
 
 group = "org.jlab.coda"
-version = "3.3" // emu.version
+version = "3.4" // emu.version
 
 java {
     toolchain { languageVersion.set(JavaLanguageVersion.of(17)) }
