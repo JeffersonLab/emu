@@ -28,11 +28,11 @@ public enum EventType {
     PHYSICS_STREAM       (9),
     OTHER                (15);
 
-    private final int value;
+    private int value;
 
 
     /** Fast way to convert integer values into EventType objects. */
-    private final static EventType[] intToType;
+    private static EventType[] intToType;
 
 
     // Fill array after all enum objects created
@@ -70,10 +70,6 @@ public enum EventType {
     }
 
 
-    /**
-     * Constructor
-     * @param value integer value associated with event type.
-     */
     EventType(int value) {
         this.value = value;
     }
@@ -104,7 +100,7 @@ public enum EventType {
     }
 
     /**
-     * Is this a usr or control event type?
+     * Is this a user or control event type?
      * @return <code>true</code> if user or control event type, else <code>false</code>
      */
     public boolean isUserOrControl() {
@@ -199,7 +195,5 @@ public enum EventType {
     public boolean isUser() {
         return this == USER;
     }
-
-
 
 }

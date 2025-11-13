@@ -128,7 +128,68 @@ public class EmuUtilities {
         }
         return aLine;
     }
-    
+
+
+    /**
+     * Encode the event type into the bit info word
+     * which will be in each evio block header.
+     * Put event type into bits 3-6 (starting at 0).
+     * Since version is in the first 8 bits, it's really
+     * bits 11-14 of the whole header word.
+     *
+     * @param bSet bit set which will become part of the bit info word
+     * @param eType event type to be encoded
+     */
+    static public void setEventType(BitSet bSet, EventType eType) {
+        int type = eType.getValue();
+
+        // check args
+        if (type < 0) type = 0;
+        else if (type > 15) type = 15;
+
+        if (bSet == null || bSet.size() < 7) {
+            return;
+        }
+        // do the encoding
+        int startingBit = 3;
+        for (int i=startingBit; i < 7; i++) {
+            bSet.set(i, ((type >>> i - startingBit) & 0x1) > 0);
+        }
+    }
+
+
+    /**
+     * Encode the "is first event" into the bit info word
+     * which will be in evio block header.
+     * 2nd bit of bitinfo, but 9th bit of header word.
+     *
+     * @param bSet bit set which will become part of the bit info word
+     */
+    static public void setFirstEvent(BitSet bSet) {
+        // check arg
+        if (bSet == null || bSet.size() < 2) {
+            return;
+        }
+
+        // Encoding bit #9 (#1 since first is bit #8)
+        bSet.set(1, true);
+    }
+
+
+    /**
+     * Encode the "is NOT first event" into the bit info word
+     * which will be in evio block header.
+     * 2nd bit of bitinfo, but 9th bit of header word.
+     *
+     * @param bSet bit set which will become part of the bit info word
+     */
+    static public void unsetFirstEvent(BitSet bSet) {
+        if (bSet == null || bSet.size() < 2) {
+            return;
+        }
+        bSet.set(1, false);
+    }
+
 
     /**
      * Return the power of 2 closest to the given argument.
@@ -191,16 +252,6 @@ public class EmuUtilities {
     //
     //        return value;
     //    }
-
-
-    /**
-     * Combine 2 ints into 1 long.
-     * @param low32bits   low 32 bits of resulting long.
-     * @param high32bits high 32 bits of resulting long.
-     */
-    static public long intsToLong(int low32bits, int high32bits) {
-        return ( (((long)low32bits) & 0xffffffffL)  |  (((long)high32bits) << 32) );
-    }
 
 
 }

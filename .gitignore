@@ -9,3 +9,12 @@
 coda.pyc
 build/
 doc/javadoc/
+
+# Ignore cool_home, if any inside
+cool_home/
+
+# Ignore Gradle project-specific cache directory
+.gradle
+
+# Ignore Gradle build output directory
+build

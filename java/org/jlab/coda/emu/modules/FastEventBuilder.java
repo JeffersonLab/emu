@@ -1044,7 +1044,7 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
             if (endCallback != null) endCallback.endWait();
         }
 
-        
+
         /**
          * Method to search for END event on each channel when END found on one channel but
          * not at the same place on the other channels. Takes multiple build threads into
@@ -1084,7 +1084,7 @@ System.out.println("  EB mod: try sending END event to output channel " + nextCh
                             // If the EB does not end its threads and complete the END transition,
                             // then the whole state machine gets stuck and it cannot go to DOWNLOAD.
                             if (millisecWait >= waitForEndPeriod) {
-System.out.println("  EB mod: findEnd, stop looking for END on chan " + ch + " since no more events available, module state = " + moduleState);
+                                System.out.println("  EB mod: findEnd, stop looking for END on chan " + ch + " since no more events available, module state = " + moduleState);
                                 continue channelLoop;
                             }
 
@@ -1108,7 +1108,7 @@ System.out.println("  EB mod: findEnd, stop looking for END on chan " + ch + " s
 //                   " places in ring with seq = " + veryNextSequence);
                             if (pBuf.getControlType() == ControlType.END) {
                                 // Found the END event
-System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
+                                System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
                                 endEventCount++;
                                 done = true;
                                 break;
@@ -1350,8 +1350,10 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                  Arrays.fill(endSequence, -1);
                  boolean[] endChannel = new boolean[inputChannelCount];
                  Arrays.fill(endChannel, false);
-                 int endEventCount = 0;
+                int endEventCount = 0;
+                int loopsAfterEnd = 0;
 
+                System.out.println("  EB mod: bt" + btIndex + " out of " + btCount + " running");
 
                  // Now do the event building
                  while (moduleState == CODAState.ACTIVE || paused) {
@@ -1390,11 +1392,13 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                              if (availableSequences[i] < nextSequences[i]) {
                                  // Can BLOCK here waiting for item if none available, but can be interrupted
                                  // Available sequence may be larger than what we asked for.
- //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", wait for event (seq [" + i + "] = " +
- //                           nextSequences[i] + ")");
+// System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", wait for " + nextSequences[i]);
                                  availableSequences[i] = buildBarrierIn[i].waitFor(nextSequences[i]);
- //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", available seq[" + i + "]  = " + availableSequences[i]);
+// System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", avail " + availableSequences[i]);
                              }
+//                             else {
+//System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", already have " + availableSequences[i]);
+//                             }
 
                              // While we have new data to work with ...
                              while (nextSequences[i] <= availableSequences[i]) {
@@ -1409,24 +1413,27 @@ System.out.println("  EB mod: findEnd, chan " + ch + " got END from " + source +
                                      // User events are placed in first output channel's first ring.
                                      // Only the first build thread will deal with them.
                                      if (btIndex == 0) {
-System.out.println("  EB mod: got user event from channel " + inputChannels.get(i).name());
+System.out.println("  EB mod: bt0, handle user evt chan " + inputChannels.get(i).name());
  //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", skip user item " + nextSequences[i]);
  //System.out.println("  EB mod: user event order = " + pBuf.getByteOrder());
                                          handleUserEvent(buildingBanks[i], inputChannels.get(i),
                                                          recordIdError);
                                          buildSequences[i].set(nextSequences[i]);
                                      }
+//                                     else {
+//System.out.println("  EB mod: bt" + btIndex + ", skip user evt chan " + inputChannels.get(i).name());
+//                                     }
                                      nextSequences[i]++;
                                  }
                                  // Skip over events being built by other build threads
                                  else if (skipCounter[i] - 1 > 0)  {
- //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", skip item " + nextSequences[i]);
+//System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", skip " + nextSequences[i]);
                                      nextSequences[i]++;
                                      skipCounter[i]--;
                                  }
                                  // Found a bank, so do something with it (skipCounter[i] - 1 == 0)
                                  else {
- //System.out.println("  EB mod: bt" + btIndex + " ch" + i + ", accept item " + nextSequences[i]);
+//System.out.println("  EB mod: bt" + btIndex + ", ch" + i + ", accept " + nextSequences[i]);
                                      // Check payload buffer for source id.
                                      // Store sync and error info in payload buffer.
                                      //if (!dumpData)
@@ -1551,6 +1558,7 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
 
                                  // Go to next input channel
                                  skipCounter[i] = btCount;
+//System.out.println("  EB mod: bt" + btIndex + ", done with physics, ch" + i + ", go to next chan");
                                  break;
                              }
 
@@ -1563,12 +1571,18 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                              }
 
                              // At this point all controls are END events
-                             haveEnd = true;
-                             endEventCount++;
-                             endSequence[i] = nextSequences[i];
-                             endChannel[i] = true;
-                             System.out.println("  EB mod: bt" + btIndex + ", found END event from " +
-                                     buildingBanks[i].getSourceName() + " at seq " + endSequence[i]);
+                            haveEnd = true;
+                            endEventCount++;
+                            endSequence[i] = nextSequences[i];
+                            endChannel[i] = true;
+                            // How many more loops in main for-loop to go before breaking.
+                            // We only want to finish the rest of this round of looking at each channel.
+                            loopsAfterEnd = inputChannelCount - i - 1;
+
+System.out.println("  EB mod: bt" + btIndex + ", found END event from " +
+        buildingBanks[i].getSourceName() + " at seq " + endSequence[i]);
+System.out.println("  EB mod: bt" + btIndex + ", look at " + loopsAfterEnd +
+        " more channels, then handle ENDS & build event");
 
                              if (!gotFirstBuildEvent) {
                                  // Don't do all the stuff for a
@@ -1579,6 +1593,15 @@ System.out.println("  EB mod: got user event from channel " + inputChannels.get(
                              // Go to next input channel
                              skipCounter[i] = btCount;
                              break;
+                         }
+
+                        if (haveEnd) {
+                            if (loopsAfterEnd-- <= 0) {
+                                // We have at least one END and have looked at all chans,
+                                // so time to exit loop or possibly block forever.
+System.out.println("  EB mod: bt" + btIndex + ", have " + endEventCount + " END evts" + ", handle END & build event");
+                                break;
+                            }
                          }
 
                          // repeat for loop endlessly

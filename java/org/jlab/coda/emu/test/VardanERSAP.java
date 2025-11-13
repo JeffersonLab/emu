@@ -310,6 +310,7 @@ public class VardanERSAP extends Thread {
                     // Buffers are in "inputItems" and "outputItems" arrays.
                     // Copy data from crate ring item to output ring item, or do something else .....
                     for (int i=0; i < streamCount; i++) {
+                        outputItems[i].clear(); // make ready for writing
                         outputItems[i].put(inputItems[i]);
                     }
 

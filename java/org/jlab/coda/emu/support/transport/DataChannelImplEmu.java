@@ -1144,12 +1144,12 @@ System.out.println("      DataChannel Emu in: " + name +
                 }
             }
             catch (InterruptedException e) {
-//                logger.warn("      DataChannel Emu in: " + name +
-//                            " parserMerger thread interrupted, quitting ####################################");
+                logger.warn("      DataChannel Emu in: " + name + " parserMerger thread interrupted, quitting");
             }
             catch (EvioException e) {
                 // Bad data format or unknown control event.
                 e.printStackTrace();
+                System.out.println("      DataChannel Emu in: " + e.getMessage());
                 channelState = CODAState.ERROR;
                 emu.setErrorState("DataChannel Emu in: " + e.getMessage());
             }
@@ -1292,7 +1292,7 @@ System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCo
                          if (!node.getDataTypeObj().isBank()) {
                              DataType eventDataType = node.getDataTypeObj();
                              throw new EvioException("ROC raw record contains " + eventDataType +
-                                                     " instead of banks (data corruption?)");
+                                     " instead of banks (data corruption?)");
                          }
                      }
                  }
@@ -1300,7 +1300,7 @@ System.out.println("      DataChannel Emu in: WARNING, event count = " + eventCo
                      // Find out exactly what type of control event it is
                      // (May be null if there is an error).
                      controlType = ControlType.getControlType(node.getTag());
-logger.info("      DataChannel Emu in: got " + controlType + " event from " + name);
+                     logger.info("      DataChannel Emu in: got " + controlType + " event from " + name);
                      if (controlType == null) {
                          logger.info("      DataChannel Emu in: found unidentified control event");
                          throw new EvioException("Found unidentified control event");
@@ -1315,22 +1315,25 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                          logger.info("      DataChannel Emu in: " + name + " got USER event");
                      }
                  }
-                 else if (evType.isMixed()) {
-                     // Mix of event types.
-                     // Can occur for combo of user, ROC RAW and possibly control events.
-                     // Only occurs when a user inserts a User event during the End transition.
+                else if (evType.isMixed()) {
+                    // Mix of event types.
+                    // Can occur for combo of user, ROC RAW and possibly control events.
+                    // Only occurs when a user inserts a User event during the End transition.
                      // What happens is that the User Event gets put into a EVIO Record which can
                      // also contain ROC RAW events. The evio record gets labeled as containing
                      // mixed events.
                      //
                      // This will NOT occur in ER, so headers are all parsed at this point.
                      // Look at the very first header, second word.
-                     // num = 0  --> it's a control or User event (tag tells which):
-                     //          0xffd0 <= tag <= 0xffdf --> control event
-                     //          else                    --> User event
-                     // num > 0  --> block level for ROC RAW
+                    // num = 0  --> it's a control or User event (tag tells which):
+                    //          0xffd0 <= tag <= 0xffdf --> control event
+                    //          else                    --> User event
+                    // num > 0  --> block level for ROC RAW
 
-                     int num = node.getNum();
+//logger.info("      DataChannel Emu in: " + name + " dealing with MIXED event type!");
+
+                    int num = node.getNum();
+//logger.info("      DataChannel Emu in: " + name + " event num = " + num);
                      if (num == 0) {
                          int tag = node.getTag();
                          if (ControlType.isControl(tag)) {
@@ -1356,11 +1359,12 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
                      }
                  }
                  else {
+//logger.info("      DataChannel Emu in: " + name + " dealing with physics");
                      // Physics or partial physics event must have BANK as data type
                      if (!node.getDataTypeObj().isBank()) {
                          DataType eventDataType = node.getDataTypeObj();
                          throw new EvioException("physics record contains " + eventDataType +
-                                                 " instead of banks (data corruption?)");
+                                 " instead of banks (data corruption?)");
                      }
                  }
 
@@ -1392,16 +1396,16 @@ logger.info("      DataChannel Emu in: got " + controlType + " event from " + na
 //                 }
 
                  // Set & reset all parameters of the ringItem
-                 if (evType.isBuildable()) {
-                     ri.setAll(null, null, node, evType, controlType,
-                               isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
-                               node.getNum(), name, item, bbSupply);
-                 }
-                 else {
-                     ri.setAll(null, null, node, evType, controlType,
-                               isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
-                               1, name, item, bbSupply);
-                 }
+                if (evType.isBuildable()) {
+                    ri.setAll(null, null, node, evType, controlType,
+                              isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
+                              node.getNum(), name, item, bbSupply);
+                }
+                else {
+                    ri.setAll(null, null, node, evType, controlType,
+                              isUser, hasFirstEvent, module.isStreamingData(), id, recordId, sourceId,
+                              1, name, item, bbSupply);
+                }
 
                  // Only the first event of first block can be "first event"
                  isUser = hasFirstEvent = false;
@@ -2464,7 +2468,7 @@ logger.info("      DataChannel Emu out: " + name + " got RESET cmd, quitting");
 //System.out.println("time = " + emu.getTime() + ", lastSendTime = " + lastSendTime);
                     long t = emu.getTime();
                     if (!regulateBufferRate && (t - lastSendTime > timeout)) {
-//System.out.println("TIME /FLUSH ******************, time = " + t + ", last time = " + lastSendTime +
+//System.out.println("TIME FLUSH ******************, time = " + t + ", last time = " + lastSendTime +
 //        ", delta = " + (t - lastSendTime));
                         flushExistingEvioData();
                     }

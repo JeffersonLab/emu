@@ -27,8 +27,9 @@ import org.jlab.coda.et.system.SystemCreate;
 
 import java.io.*;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 
 /**
  * This class specifies a single ET system to connect to.
@@ -64,6 +65,7 @@ public class DataTransportImplEt extends DataTransportAdapter {
     /** Running ET system process if any. */
     private Process processET;
 
+    /** Emu which created this object. */
     private Emu emu;
 
     private Logger logger;
@@ -728,9 +730,13 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                 // Script can be set to use bash if set with SHELL env var. Bash will not
                 // redefine these variables.
                 // Scrap this for now!
-                //processET = Runtime.getRuntime().exec(cmds);
+                //processET = Runtime.getRuntime().exec(etCmds);
 
-                processET = Runtime.getRuntime().exec(etCmd);
+                String[] cmd = etCmd.split(" ");
+                // Make ET io and error streams into local streams
+                ProcessBuilder pb = new ProcessBuilder(cmd).inheritIO();
+                // Start up ET system
+                processET = pb.start();
 
                 // Allow process a chance to run before testing if its terminated.
                 Thread.yield();
@@ -745,6 +751,7 @@ logger.debug("    DataTransport Et: create local C ET system, " + etOpenConfig.g
                 }
 
                 if (terminated) {
+                    logger.debug("    DataTransport Et:  ET system process was terminated");
                     String errorOut = "";
                     // grab any output
                     String[] retStrings = gatherAllOutput(processET, true);
