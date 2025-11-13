@@ -254,4 +254,14 @@ public class EmuUtilities {
     //    }
 
 
+    /**
+     * Combine 2 ints into 1 long.
+     * @param low32bits   low 32 bits of resulting long.
+     * @param high32bits high 32 bits of resulting long.
+     */
+    static public long intsToLong(int low32bits, int high32bits) {
+        return ( (((long)low32bits) & 0xffffffffL)  |  (((long)high32bits) << 32) );
+    }
+
+
 }

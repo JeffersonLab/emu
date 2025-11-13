@@ -28,11 +28,11 @@ public enum EventType {
     PHYSICS_STREAM       (9),
     OTHER                (15);
 
-    private int value;
+    private final int value;
 
 
     /** Fast way to convert integer values into EventType objects. */
-    private static EventType[] intToType;
+    private final static EventType[] intToType;
 
 
     // Fill array after all enum objects created
@@ -70,6 +70,10 @@ public enum EventType {
     }
 
 
+    /**
+     * Constructor
+     * @param value integer value associated with event type.
+     */
     EventType(int value) {
         this.value = value;
     }

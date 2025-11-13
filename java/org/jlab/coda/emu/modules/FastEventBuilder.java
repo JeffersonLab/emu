@@ -1595,10 +1595,10 @@ System.out.println("  EB mod: bt" + btIndex + ", look at " + loopsAfterEnd +
                              break;
                          }
 
-                        if (haveEnd) {
-                            if (loopsAfterEnd-- <= 0) {
-                                // We have at least one END and have looked at all chans,
-                                // so time to exit loop or possibly block forever.
+                         if (haveEnd) {
+                             if (loopsAfterEnd-- <= 0) {
+                                 // We have at least one END and have looked at all chans,
+                                 // so time to exit loop or possibly block forever.
 System.out.println("  EB mod: bt" + btIndex + ", have " + endEventCount + " END evts" + ", handle END & build event");
                                 break;
                             }

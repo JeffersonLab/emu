@@ -45,11 +45,6 @@ Documentation on GitHub:
 
 * [All Documentation](https://jeffersonlab.github.io/emu)
 
-Documentation on the home page:
-
-* [User's Guide PDF](https://coda.jlab.org/drupal/content/emu-33-users-guide)
-* [Javadoc for Java Library](https://coda.jlab.org/drupal/content/emu-33-javadoc)
-
 ----------------------------
 
 # **Java**
@@ -105,30 +100,6 @@ doc/usersGuide for pdf and Microsoft Word format documents.
 Some of the documentation is in the source code itself and must be generated
 and placed into its own directory.
 The java code is documented with, of course, javadoc.
-
-## Configuring ET Control Integers
-
-When an `EbModule` feeds an ET output channel you can request that specific
-ET control integers be filled from the built event. Add one or more
-`<controlint>` children beneath the module definition:
-
-```
-<EbModule class="EventBuilding" id="2" ...>
-  <inchannel .../>
-  <controlint id="2" roc_id="31" bank_id="0x3103" offset="4"/>
-  <outchannel .../>
-</EbModule>
-```
-
-- `id` – ET control integer slot (1 .. `EtConstants.stationSelectInts-1`; slot 0 is reserved for CODA).
-- `roc_id` – CODA ROC ID whose raw bank should be inspected.
-- `bank_id` – EVIO tag of the sub-bank inside the ROC data that carries the desired data.
-- `offset` – zero-based 32-bit word index inside that bank to copy.
-
-At run time the event builder locates the requested ROC/bank in each built
-event, copies the word into the specified ET control integer, and the ET
-station can then filter on that value using the standard control-int
-selection logic.
 
 ----------------------------
 
