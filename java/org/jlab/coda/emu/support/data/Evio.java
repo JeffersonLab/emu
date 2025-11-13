@@ -1261,7 +1261,6 @@ if (debug) System.out.println("gotValidControlEvents: found control event of typ
      * @param sliceCount      number of input channels
      * @param emptyFrames     the empty frame events that must be combined.
      *
-     * @return created PayloadBuffer object containing Control event in byte buffer
      * @throws EmuException if frame numbers of empty frames don't agree.
      */
     public static void combineEmptyFrameBuffers(long skippedFrame,

@@ -82,7 +82,7 @@ public abstract class Tuple implements Iterable<Object>, Serializable, Comparabl
      * <p>
      * Get the value at a specific position in the tuple. This method
      * has to return object, so using it you will lose the type-safety you 
-     * get with the <tt>getValueX()</tt> methods.
+     * get with the <code>getValueX()</code> methods.
      * </p>
      * 
      * @param pos the position of the value to be retrieved.
