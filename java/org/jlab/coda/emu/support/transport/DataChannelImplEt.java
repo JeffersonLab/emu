@@ -112,7 +112,10 @@ public class DataChannelImplEt extends DataChannelAdapter {
     private boolean deadLockAtPrestart;
 
     /** Control words of each ET event written to output. */
-    private int[] control;
+    private int[] baseControl;
+
+    /** Working copy of control words to be updated per ET event. */
+    private int[] workingControl;
 
     /** ET system connected to. */
     private EtSystem etSystem;
@@ -182,6 +185,50 @@ public class DataChannelImplEt extends DataChannelAdapter {
         destBuf.order(srcBuf.order());
 
         return (ByteBuffer)destBuf.position(0).limit(len);
+    }
+
+
+    /**
+     * Reset and populate the ET control integers for the ET event currently being written.
+     * @param ringItem object holding metadata about the CODA event to send.
+     * @param eventType CODA event type being written.
+     */
+    private void prepareEtControlWords(RingItem ringItem, EventType eventType) {
+        if (baseControl == null || workingControl == null) {
+            return;
+        }
+
+        System.arraycopy(baseControl, 0, workingControl, 0, baseControl.length);
+
+        if (isFinalEB) {
+            workingControl[0] = eventType.getValue();
+        }
+
+        if (ringItem == null) {
+            return;
+        }
+
+        int mask = ringItem.getEtControlMask();
+        if (mask == 0) {
+            return;
+        }
+
+        int[] overrides = ringItem.getEtControlValues();
+        for (int i=0; i < workingControl.length; i++) {
+            if ((mask & (1 << i)) != 0) {
+                if (overrides != null && i < overrides.length) {
+                    workingControl[i] = overrides[i];
+                }
+                else {
+                    workingControl[i] = 0;
+                }
+            }
+        }
+    }
+
+
+    private boolean hasCustomEtControl(RingItem ringItem) {
+        return ringItem != null && ringItem.getEtControlMask() != 0;
     }
 
 
@@ -425,16 +472,17 @@ logger.info("      DataChannel Et: chunk = " + chunk);
             isROC = emuClass == CODAClass.ROC;
             if (isEB || isROC) {
                 // The control array needs to be the right size.
-                control = new int[EtConstants.stationSelectInts];
+                baseControl = new int[EtConstants.stationSelectInts];
+                workingControl = new int[baseControl.length];
 
                 // The first control word is this EB's coda id
-                control[0] = id;
-//System.out.println("      DataChannel Et: setting control[0] = " + id);
+                baseControl[0] = id;
+//System.out.println("      DataChannel Et: setting baseControl[0] = " + id);
                 // Is this the last level event builder (not a DC)?
                 // In this case, we want the first control word to indicate
                 // what type of event is being sent.
                 isFinalEB = emuClass.isFinalEventBuilder();
-                // The value of control[0] will be set in the DataOutputHelper
+                // The value of baseControl[0] will be set in the DataOutputHelper
             }
 
             // Connect to ET system
@@ -1784,6 +1832,7 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up a
                 int doubleEvioRecordHeaderBytes = 2*RecordHeader.HEADER_SIZE_BYTES;
                 boolean etEventInitialized, isUserOrControl=false;
                 boolean isUser=false, isControl=false;
+                boolean customEtControl=false;
                 boolean gotPrestart=false;
 
                 // Variables for consuming ring buffer items
@@ -1871,6 +1920,7 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up a
                         //------------------------------------------
 
                         while (true) {
+                            customEtControl = false;
                             //--------------------------------------------------------
                             // Get 1 item off of this channel's input rings which gets
                             // stuff from last module.
@@ -1883,6 +1933,7 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up a
                             if (unusedRingItem != null) {
                                 ringItem = unusedRingItem;
                                 unusedRingItem = null;
+                                customEtControl = hasCustomEtControl(ringItem);
                             }
                             else {
                                 try {
@@ -1903,6 +1954,7 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up a
                                 isUser = pBankType.isUser();
                                 isControl = pBankType.isControl();
                                 isUserOrControl = pBankType.isUserOrControl();
+                                customEtControl = hasCustomEtControl(ringItem);
 //System.out.println("      DataChannel Et out (" + name + "): filler, isUserOrControl = " + isUserOrControl);
 
                                 // If no prestart yet ...
@@ -1993,6 +2045,10 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up a
 //System.out.println("      DataChannel Et out (" + name + "): filler found END, last index = " + j);
                                 }
                             }
+                            else if (customEtControl && banksInEtBuf > 0) {
+                                unusedRingItem = ringItem;
+                                continue nextEvent;
+                            }
 
 
                             //-------------------------------------------------------
@@ -2004,12 +2060,9 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up a
                                 // CODA owns the first ET event control int which contains source id.
                                 // If a PEB or SEB, set it to event type.
                                 // If a DC or ROC,  set this to coda id.
-                                if (isFinalEB) {
-                                    control[0] = pBankType.getValue();
-                                    event.setControl(control);
-                                }
-                                else if (isEB || isROC) {
-                                    event.setControl(control);
+                                if (isEB || isROC) {
+                                    prepareEtControlWords(ringItem, pBankType);
+                                    event.setControl(workingControl);
                                 }
 
                                 // Set byte order
@@ -2133,7 +2186,7 @@ logger.debug("          DataChannel Et shutdown: " + name + " channel, woke up a
                             // Send the container to the putter thread and to ET system.
 
                             // Also switch to new ET event for user & control banks
-                            if ((emu.getTime() - startTime > TIMEOUT) || isUserOrControl) {
+                            if ((emu.getTime() - startTime > TIMEOUT) || isUserOrControl || customEtControl) {
                                 // We want the PRESTART event to go right through without delay.
                                 // So don't wait for all new events to be filled before sending this
                                 // container to be put back into the ET system.

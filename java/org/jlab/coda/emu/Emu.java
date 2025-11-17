@@ -2724,7 +2724,12 @@ if (debug) System.out.println("Emu " + name + " download: pass download down to 
                             module = new StreamAggregator(n.getNodeName(), attributeMap, this);
                             break;
                         case "EventBuilding":
-                            module = new FastEventBuilder(n.getNodeName(), attributeMap, this);
+                            FastEventBuilder ebModule = new FastEventBuilder(n.getNodeName(), attributeMap, this);
+                            List<FastEventBuilder.ControlIntRequest> controlSpecs = parseControlIntConfig(n);
+                            if (controlSpecs != null && !controlSpecs.isEmpty()) {
+                                ebModule.setControlIntRequests(controlSpecs);
+                            }
+                            module = ebModule;
                             break;
                         case "RocSimulation":
                             module = new RocSimulation(n.getNodeName(), attributeMap, this);
@@ -3435,5 +3440,105 @@ System.out.println("Emu " + name + " config: " + e.getMessage());
         setState(CONFIGURED);
     }
 
+
+    private List<FastEventBuilder.ControlIntRequest> parseControlIntConfig(Node moduleNode)
+            throws DataNotFoundException {
+
+        NodeList children = moduleNode.getChildNodes();
+        ArrayList<FastEventBuilder.ControlIntRequest> specs = null;
+
+        for (int i=0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (child.getNodeType() != Node.ELEMENT_NODE) {
+                continue;
+            }
+
+            if (!child.getNodeName().equalsIgnoreCase("controlint")) {
+                continue;
+            }
+
+            NamedNodeMap attrs = child.getAttributes();
+            if (attrs == null) {
+                throw new DataNotFoundException("controlint entry missing attributes");
+            }
+
+            String elementName = "controlint";
+            int etIndex = parseConfigInt(getRequiredAttribute(attrs, "id", elementName),
+                                        "controlint id");
+            int rocId = parseConfigInt(getRequiredAttribute(attrs, "roc_id", elementName),
+                                       "controlint roc_id");
+
+            String bankTagStr = getAttribute(attrs, "bank_id");
+            if (bankTagStr == null) {
+                bankTagStr = getAttribute(attrs, "bank_tag");
+            }
+            if (bankTagStr == null) {
+                throw new DataNotFoundException("controlint missing bank_id/bank_tag attribute");
+            }
+            int bankTag = parseConfigInt(bankTagStr, "controlint bank tag");
+
+            Integer bankNum = null;
+            String bankNumStr = getAttribute(attrs, "bank_num");
+            if (bankNumStr != null) {
+                bankNum = parseConfigInt(bankNumStr, "controlint bank_num");
+            }
+
+            int offset = parseConfigInt(getRequiredAttribute(attrs, "offset", elementName),
+                                        "controlint offset");
+            if (offset < 1) {
+                throw new DataNotFoundException("controlint offset must be >= 1");
+            }
+            int wordIndex = offset - 1;
+
+            Integer defaultValue = null;
+            String defaultStr = getAttribute(attrs, "default");
+            if (defaultStr != null && !defaultStr.isEmpty()) {
+                defaultValue = parseConfigInt(defaultStr, "controlint default");
+            }
+
+            if (specs == null) {
+                specs = new ArrayList<>();
+            }
+            specs.add(FastEventBuilder.ControlIntRequest.fromConfig(etIndex, rocId,
+                                                                    bankTag, bankNum,
+                                                                    wordIndex, defaultValue));
+        }
+
+        return specs;
+    }
+
+
+    private static int parseConfigInt(String value, String description) throws DataNotFoundException {
+        if (value == null) {
+            throw new DataNotFoundException("Missing value for " + description);
+        }
+
+        String trimmed = value.trim();
+        try {
+            if (trimmed.startsWith("0x") || trimmed.startsWith("0X")) {
+                return (int) Long.parseLong(trimmed.substring(2), 16);
+            }
+            return Integer.parseInt(trimmed);
+        }
+        catch (NumberFormatException ex) {
+            throw new DataNotFoundException("Cannot parse " + description + " value '" + trimmed + "'");
+        }
+    }
+
+
+    private static String getRequiredAttribute(NamedNodeMap attrs, String name, String element)
+            throws DataNotFoundException {
+        String value = getAttribute(attrs, name);
+        if (value == null) {
+            throw new DataNotFoundException(element + " missing '" + name + "' attribute");
+        }
+        return value;
+    }
+
+
+    private static String getAttribute(NamedNodeMap attrs, String name) {
+        Node node = attrs.getNamedItem(name);
+        return node != null ? node.getNodeValue() : null;
+    }
 
 }

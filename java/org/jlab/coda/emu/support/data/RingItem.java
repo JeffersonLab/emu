@@ -281,6 +281,33 @@ public interface RingItem extends Cloneable, Attached {
     void setNonFatalBuildingError(boolean nonFatalBuildingError);
 
     /**
+     * Get a bit mask describing which ET control integers should be overridden
+     * when this ring item is written to an ET system.
+     * @return bit mask with bit {@code i} set if ET control integer {@code i}
+     *         must be replaced.
+     */
+    int getEtControlMask();
+
+    /**
+     * Get the ET control integer values associated with this ring item. Only
+     * indices flagged in {@link #getEtControlMask()} are meaningful.
+     * @return array containing control values or {@code null} if none.
+     */
+    int[] getEtControlValues();
+
+    /**
+     * Store ET control integer overrides for this ring item.
+     * @param mask   bit mask of indices that should be set
+     * @param values array containing the replacement values
+     */
+    void setEtControlValues(int mask, int[] values);
+
+    /**
+     * Clear any ET control integer overrides associated with this item.
+     */
+    void clearEtControlValues();
+
+    /**
      * Releases a ByteBuffer (if any) referenced by this object which was obtained
      * from a ByteBufferSupply object. This allows the buffer to be reused.
      */

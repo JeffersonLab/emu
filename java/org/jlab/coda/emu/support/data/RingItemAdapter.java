@@ -18,6 +18,7 @@ import org.jlab.coda.jevio.EvioNode;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
 /**
  * This class provides the boilerplate methods of the RingItem interface.
@@ -97,6 +98,12 @@ abstract class RingItemAdapter implements RingItem {
 
     /** Associated object used to store things. */
     protected Object attachment;
+
+    /** Bit mask describing ET control integer overrides. */
+    protected int etControlMask;
+
+    /** ET control integer override values. */
+    protected int[] etControlValues;
 
     //---------------------------------------------------------------------------------------
     // Streaming related members
@@ -178,6 +185,8 @@ abstract class RingItemAdapter implements RingItem {
         attachment             = ringItem.getAttachment();
         byteBufferItem         = ringItem.getByteBufferItem();
         byteBufferSupply       = ringItem.getByteBufferSupply();
+
+        setEtControlValues(ringItem.getEtControlMask(), ringItem.getEtControlValues());
     }
 
 
@@ -342,6 +351,35 @@ abstract class RingItemAdapter implements RingItem {
         this.nonFatalBuildingError = nonFatalBuildingError;
     }
 
+    /** {@inheritDoc} */
+    public int getEtControlMask() {return etControlMask;}
+
+    /** {@inheritDoc} */
+    public int[] getEtControlValues() {return etControlValues;}
+
+    /** {@inheritDoc} */
+    public void setEtControlValues(int mask, int[] values) {
+        etControlMask = mask;
+        if (mask == 0 || values == null) {
+            etControlValues = null;
+            return;
+        }
+
+        if (etControlValues == null || etControlValues.length < values.length) {
+            etControlValues = new int[values.length];
+        }
+
+        System.arraycopy(values, 0, etControlValues, 0, values.length);
+    }
+
+    /** {@inheritDoc} */
+    public void clearEtControlValues() {
+        etControlMask = 0;
+        if (etControlValues != null) {
+            Arrays.fill(etControlValues, 0);
+        }
+    }
+
     //---------------------------------------------------------------------------------------
     // Streaming related members
     //---------------------------------------------------------------------------------------
@@ -382,7 +420,15 @@ abstract class RingItemAdapter implements RingItem {
 
     public Object clone() {
         try {
-            return super.clone();
+            RingItemAdapter item = (RingItemAdapter) super.clone();
+            if (etControlValues != null) {
+                item.etControlValues = Arrays.copyOf(etControlValues, etControlValues.length);
+            }
+            else {
+                item.etControlValues = null;
+            }
+            item.etControlMask = etControlMask;
+            return item;
         }
         catch (Exception e) {
             return null;

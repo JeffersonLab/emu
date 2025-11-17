@@ -23,6 +23,7 @@ import org.jlab.coda.emu.support.configurer.DataNotFoundException;
 import org.jlab.coda.emu.support.control.CmdExecException;
 import org.jlab.coda.emu.support.data.*;
 import org.jlab.coda.emu.support.transport.DataChannel;
+import org.jlab.coda.et.EtConstants;
 import org.jlab.coda.jevio.*;
 
 import java.nio.ByteBuffer;
@@ -263,6 +264,149 @@ public class FastEventBuilder extends ModuleAdapter {
     /** Number of slots in each output channel ring buffer. */
     private int outputRingSize;
 
+    //-------------------------------------------
+    // ET control integer support
+    //-------------------------------------------
+
+    /** Number of ET control integers available. */
+    private static final int ET_CONTROL_WORD_COUNT = EtConstants.stationSelectInts;
+
+    /** Requests describing what to fill into outgoing ET control integers. */
+    private List<ControlIntRequest> controlIntRequests;
+
+    /** Bit mask of ET control integers touched by {@link #controlIntRequests}. */
+    private int controlIntWordMask;
+
+    /** Have the ROC ids in {@link #controlIntRequests} been mapped to input channels? */
+    private boolean controlIntInputsResolved;
+
+    /**
+     * Description of a control integer that should be populated when writing
+     * built events to an ET system.
+     */
+    public static final class ControlIntRequest {
+
+        private final int etIndex;
+        private final int rocId;
+        private final int bankTag;
+        private final Integer bankNum;
+        private final int wordIndex;
+        private final Integer defaultValue;
+
+        private int inputIndex = -1;
+
+        private ControlIntRequest(int etIndex, int rocId, int bankTag,
+                                  Integer bankNum, int wordIndex,
+                                  Integer defaultValue) {
+            this.etIndex = etIndex;
+            this.rocId = rocId;
+            this.bankTag = bankTag;
+            this.bankNum = bankNum;
+            this.wordIndex = wordIndex;
+            this.defaultValue = defaultValue;
+        }
+
+        public static ControlIntRequest fromConfig(int etIndex, int rocId, int bankTag,
+                                                   Integer bankNum, int wordIndex,
+                                                   Integer defaultValue) {
+            return new ControlIntRequest(etIndex, rocId, bankTag, bankNum, wordIndex, defaultValue);
+        }
+
+        public int getEtIndex() {return etIndex;}
+
+        public int getInputIndex() {return inputIndex;}
+
+        public int getRocId() {return rocId;}
+
+        public void resolveInputIndex(int[] ids) throws CmdExecException {
+            if (ids == null || ids.length < 1) {
+                throw new CmdExecException("no input channels defined while resolving control integers");
+            }
+
+            for (int i=0; i < ids.length; i++) {
+                if (ids[i] == rocId) {
+                    inputIndex = i;
+                    return;
+                }
+            }
+
+            throw new CmdExecException("controlint roc_id=" + rocId + " not found among EB inputs");
+        }
+
+        public int extractValue(EvioNode rocNode) throws EmuException {
+            if (rocNode == null) {
+                return useDefaultOrThrow("roc data missing for roc_id=" + rocId);
+            }
+
+            EvioNode target = findTargetNode(rocNode);
+            if (target == null) {
+                return useDefaultOrThrow("bank/tag 0x" + Integer.toHexString(bankTag) +
+                                         describeBankNum() + " not found for roc_id=" + rocId);
+            }
+
+            int availableWords = target.getDataLength();
+            if (wordIndex >= availableWords) {
+                return useDefaultOrThrow("bank/tag 0x" + Integer.toHexString(bankTag) +
+                                         describeBankNum() + " in roc_id=" + rocId +
+                                         " has only " + availableWords + " words");
+            }
+
+            ByteBuffer buffer = target.getBuffer();
+            int dataPos;
+            if (buffer == null) {
+                buffer = target.getStructureBuffer(true);
+                dataPos = (target.getDataPosition() - target.getPosition()) + 4*wordIndex;
+            }
+            else {
+                dataPos = target.getDataPosition() + 4*wordIndex;
+            }
+
+            ByteBuffer dup = buffer.duplicate().order(buffer.order());
+            if (dup.limit() < dataPos + 4) {
+                return useDefaultOrThrow("insufficient bytes in bank/tag 0x" + Integer.toHexString(bankTag) +
+                                         describeBankNum() + " for roc_id=" + rocId);
+            }
+
+            dup.position(dataPos);
+            return dup.getInt();
+        }
+
+        private EvioNode findTargetNode(EvioNode start) {
+            ArrayDeque<EvioNode> stack = new ArrayDeque<>();
+            stack.push(start);
+
+            while (!stack.isEmpty()) {
+                EvioNode node = stack.pop();
+                if (node.getTag() == bankTag &&
+                        (bankNum == null || node.getNum() == bankNum.intValue())) {
+                    return node;
+                }
+
+                int childCount = node.getChildCount();
+                for (int i=0; i < childCount; i++) {
+                    EvioNode child = node.getChildAt(i);
+                    if (child != null) {
+                        stack.push(child);
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private int useDefaultOrThrow(String msg) throws EmuException {
+            if (defaultValue != null) {
+                return defaultValue;
+            }
+
+            throw new EmuException(msg);
+        }
+
+        private String describeBankNum() {
+            return bankNum == null ? "" : (" num=" + bankNum);
+        }
+    }
+
 
     /**
      * Constructor creates a new EventBuilding instance.
@@ -368,6 +512,87 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
     }
 
 
+    /**
+     * Provide configuration for filling ET control integers.
+     * @param requests parsed list of requests, may be {@code null}
+     * @throws DataNotFoundException if a request references an invalid ET index
+     *                               or duplicates an existing one.
+     */
+    public void setControlIntRequests(List<ControlIntRequest> requests)
+            throws DataNotFoundException {
+
+        if (requests == null || requests.isEmpty()) {
+            controlIntRequests = null;
+            controlIntWordMask = 0;
+            controlIntInputsResolved = true;
+            return;
+        }
+
+        ArrayList<ControlIntRequest> copy = new ArrayList<>(requests);
+        boolean[] used = new boolean[ET_CONTROL_WORD_COUNT];
+        int mask = 0;
+
+        for (ControlIntRequest req : copy) {
+            int idx = req.getEtIndex();
+            if (idx < 0 || idx >= ET_CONTROL_WORD_COUNT) {
+                throw new DataNotFoundException("controlint id " + idx +
+                        " is outside ET control range (" + ET_CONTROL_WORD_COUNT + ")");
+            }
+            if (used[idx]) {
+                throw new DataNotFoundException("duplicate controlint id " + idx);
+            }
+            used[idx] = true;
+            mask |= (1 << idx);
+        }
+
+        controlIntRequests = Collections.unmodifiableList(copy);
+        controlIntWordMask = mask;
+        controlIntInputsResolved = false;
+    }
+
+
+    private boolean hasControlIntRequests() {
+        return controlIntRequests != null && !controlIntRequests.isEmpty();
+    }
+
+
+    private void resolveControlIntRequests() throws CmdExecException {
+        if (!hasControlIntRequests() || controlIntInputsResolved) {
+            return;
+        }
+
+        for (ControlIntRequest request : controlIntRequests) {
+            request.resolveInputIndex(inputIds);
+        }
+
+        controlIntInputsResolved = true;
+    }
+
+
+    private int buildControlIntOverrides(EvioNode[] rocNodes, int[] storage)
+            throws EmuException {
+
+        if (!hasControlIntRequests()) {
+            return 0;
+        }
+
+        int mask = 0;
+
+        for (ControlIntRequest request : controlIntRequests) {
+            int rocIndex = request.getInputIndex();
+            if (rocIndex < 0 || rocIndex >= rocNodes.length) {
+                throw new EmuException("input index for controlint request is invalid");
+            }
+
+            int value = request.extractValue(rocNodes[rocIndex]);
+            storage[request.getEtIndex()] = value;
+            mask |= (1 << request.getEtIndex());
+        }
+
+        return mask;
+    }
+
+
     /** {@inheritDoc} */
     public int getInternalRingCount() {return buildingThreadCount*ringItemCount;};
 
@@ -448,7 +673,8 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
      */
     private void eventToOutputRing(int ringNum, int channelNum, int eventCount,
                                    ByteBuffer buf, EventType eventType,
-                                   ByteBufferItem item, ByteBufferSupply bbSupply)
+                                   ByteBufferItem item, ByteBufferSupply bbSupply,
+                                   int controlMask, int[] controlValues)
             throws InterruptedException {
 
         // Have output channels?
@@ -469,6 +695,12 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
         ri.setSourceName(null);
         ri.setReusableByteBuffer(bbSupply, item);
         ri.setEventCount(eventCount);
+        if (controlMask != 0 && controlValues != null) {
+            ri.setEtControlValues(controlMask, controlValues);
+        }
+        else {
+            ri.clearEtControlValues();
+        }
 
 //System.out.println("  EB mod: will publish to ring " + ringNum);
         rb.publish(nextRingItem);
@@ -822,6 +1054,12 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
          */
         private boolean fastCopyReady;
 
+        /** Whether ET control integers need to be computed for this thread's output. */
+        private final boolean computeControlInts;
+
+        /** Scratch storage for ET control integer overrides. */
+        private final int[] controlIntBuffer;
+
         // Stuff needed to direct built events to proper output channel(s)
 
         /** Number (index) of the current, sequential-between-all-built-thds,
@@ -857,6 +1095,8 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
             this.btIndex = btIndex;
             evIndex = btIndex;
             btCount = buildingThreadCount;
+            computeControlInts = hasControlIntRequests();
+            controlIntBuffer = computeControlInts ? new int[ET_CONTROL_WORD_COUNT] : null;
 System.out.println("  EB mod: create Build Thread with index " + btIndex + ", count = " + btCount);
         }
 
@@ -1877,15 +2117,21 @@ System.out.println("  EB mod: bt" + btIndex + ", have " + endEventCount + " END 
 
                      //-------------------------
 
-                     // Which output channel do we use?  Round-robin.
-                     if (outputChannelCount > 1) {
-                         outputChannelIndex = (int) (evIndex % outputChannelCount);
-                     }
+                    // Which output channel do we use?  Round-robin.
+                    if (outputChannelCount > 1) {
+                        outputChannelIndex = (int) (evIndex % outputChannelCount);
+                    }
 
-                     // Put event in the correct output channel.
- //System.out.println("  EB mod: bt#" + btIndex + " write event " + evIndex + " on ch" + outputChannelIndex + ", ring " + btIndex);
-                     eventToOutputRing(btIndex, outputChannelIndex, entangledEventCount,
-                                       evBuf, eventType, bufItem, bbSupply);
+                    int controlMask = 0;
+                    if (computeControlInts) {
+                        controlMask = buildControlIntOverrides(rocNodes, controlIntBuffer);
+                    }
+
+                    // Put event in the correct output channel.
+//System.out.println("  EB mod: bt#" + btIndex + " write event " + evIndex + " on ch" + outputChannelIndex + ", ring " + btIndex);
+                    eventToOutputRing(btIndex, outputChannelIndex, entangledEventCount,
+                                      evBuf, eventType, bufItem, bbSupply,
+                                      controlMask, computeControlInts ? controlIntBuffer : null);
 
                      evIndex += btCount;
 
@@ -2139,6 +2385,10 @@ System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
                     throw new CmdExecException("input channels have duplicate rocIDs");
                 }
             }
+        }
+
+        if (hasControlIntRequests()) {
+            resolveControlIntRequests();
         }
 
         moduleState = CODAState.PAUSED;
