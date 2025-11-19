@@ -277,9 +277,6 @@ public class FastEventBuilder extends ModuleAdapter {
     /** Bit mask of ET control integers touched by {@link #controlIntRequests}. */
     private int controlIntWordMask;
 
-    /** Have the ROC ids in {@link #controlIntRequests} been mapped to input channels? */
-    private boolean controlIntInputsResolved;
-
     /**
      * Description of a control integer that should be populated when writing
      * built events to an ET system.
@@ -318,19 +315,26 @@ public class FastEventBuilder extends ModuleAdapter {
 
         public int getRocId() {return rocId;}
 
-        public void resolveInputIndex(int[] ids) throws CmdExecException {
+        /**
+         * Try to bind this request to an input channel by its configured CODA id. If not found,
+         * leave it unresolved so a runtime match (using source ids in the events) can be used.
+         *
+         * @param ids array of input channel ids
+         * @return {@code true} if resolved, else {@code false}
+         */
+        public boolean resolveInputIndex(int[] ids) {
             if (ids == null || ids.length < 1) {
-                throw new CmdExecException("no input channels defined while resolving control integers");
+                return false;
             }
 
             for (int i=0; i < ids.length; i++) {
                 if (ids[i] == rocId) {
                     inputIndex = i;
-                    return;
+                    return true;
                 }
             }
 
-            throw new CmdExecException("controlint roc_id=" + rocId + " not found among EB inputs");
+            return false;
         }
 
         public int extractValue(EvioNode rocNode) throws EmuException {
@@ -524,7 +528,6 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
         if (requests == null || requests.isEmpty()) {
             controlIntRequests = null;
             controlIntWordMask = 0;
-            controlIntInputsResolved = true;
             return;
         }
 
@@ -547,7 +550,6 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
 
         controlIntRequests = Collections.unmodifiableList(copy);
         controlIntWordMask = mask;
-        controlIntInputsResolved = false;
     }
 
 
@@ -556,20 +558,9 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
     }
 
 
-    private void resolveControlIntRequests() throws CmdExecException {
-        if (!hasControlIntRequests() || controlIntInputsResolved) {
-            return;
-        }
-
-        for (ControlIntRequest request : controlIntRequests) {
-            request.resolveInputIndex(inputIds);
-        }
-
-        controlIntInputsResolved = true;
-    }
-
-
-    private int buildControlIntOverrides(EvioNode[] rocNodes, int[] storage)
+    private int buildControlIntOverrides(PayloadBuffer[] buildingBanks,
+                                         EvioNode[] rocNodes,
+                                         int[] storage)
             throws EmuException {
 
         if (!hasControlIntRequests()) {
@@ -581,7 +572,11 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
         for (ControlIntRequest request : controlIntRequests) {
             int rocIndex = request.getInputIndex();
             if (rocIndex < 0 || rocIndex >= rocNodes.length) {
-                throw new EmuException("input index for controlint request is invalid");
+                rocIndex = findInputIndexForRoc(request.getRocId(), buildingBanks);
+                if (rocIndex < 0) {
+                    throw new EmuException("controlint roc_id=" + request.getRocId() +
+                                           " not found among current event inputs");
+                }
             }
 
             int value = request.extractValue(rocNodes[rocIndex]);
@@ -590,6 +585,16 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
         }
 
         return mask;
+    }
+
+
+    private int findInputIndexForRoc(int rocId, PayloadBuffer[] buildingBanks) {
+        for (int i=0; i < buildingBanks.length; i++) {
+            if (buildingBanks[i] != null && buildingBanks[i].getSourceId() == rocId) {
+                return i;
+            }
+        }
+        return -1;
     }
 
 
@@ -2124,7 +2129,7 @@ System.out.println("  EB mod: bt" + btIndex + ", have " + endEventCount + " END 
 
                     int controlMask = 0;
                     if (computeControlInts) {
-                        controlMask = buildControlIntOverrides(rocNodes, controlIntBuffer);
+                        controlMask = buildControlIntOverrides(buildingBanks, rocNodes, controlIntBuffer);
                     }
 
                     // Put event in the correct output channel.
@@ -2385,10 +2390,6 @@ System.out.println("  EB mod: prestart, input channels have duplicate rocIDs");
                     throw new CmdExecException("input channels have duplicate rocIDs");
                 }
             }
-        }
-
-        if (hasControlIntRequests()) {
-            resolveControlIntRequests();
         }
 
         moduleState = CODAState.PAUSED;
