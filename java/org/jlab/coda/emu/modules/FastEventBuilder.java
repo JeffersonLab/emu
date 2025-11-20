@@ -315,6 +315,8 @@ public class FastEventBuilder extends ModuleAdapter {
 
         public int getRocId() {return rocId;}
 
+        public Integer getDefaultValue() {return defaultValue;}
+
         /**
          * Try to bind this request to an input channel by its configured CODA id. If not found,
          * leave it unresolved so a runtime match (using source ids in the events) can be used.
@@ -574,8 +576,11 @@ logger.info("  EB mod: internal ring buf count -> " + ringItemCount);
             if (rocIndex < 0 || rocIndex >= rocNodes.length) {
                 rocIndex = findInputIndexForRoc(request.getRocId(), buildingBanks);
                 if (rocIndex < 0) {
-                    throw new EmuException("controlint roc_id=" + request.getRocId() +
-                                           " not found among current event inputs");
+                    Integer defVal = request.getDefaultValue();
+                    int value = (defVal != null) ? defVal : 0;
+                    storage[request.getEtIndex()] = value;
+                    mask |= (1 << request.getEtIndex());
+                    continue;
                 }
             }
 
