@@ -3485,11 +3485,9 @@ System.out.println("Emu " + name + " config: " + e.getMessage());
 
             int offset = parseConfigInt(getRequiredAttribute(attrs, "offset", elementName),
                                         "controlint offset");
-            if (offset < 1) {
-                throw new DataNotFoundException("controlint offset must be >= 1");
+            if (offset < 0) {
+                throw new DataNotFoundException("controlint offset must be >= 0");
             }
-            int wordIndex = offset - 1;
-
             Integer defaultValue = null;
             String defaultStr = getAttribute(attrs, "default");
             if (defaultStr != null && !defaultStr.isEmpty()) {
@@ -3501,7 +3499,7 @@ System.out.println("Emu " + name + " config: " + e.getMessage());
             }
             specs.add(FastEventBuilder.ControlIntRequest.fromConfig(etIndex, rocId,
                                                                     bankTag, bankNum,
-                                                                    wordIndex, defaultValue));
+                                                                    offset, defaultValue));
         }
 
         return specs;
