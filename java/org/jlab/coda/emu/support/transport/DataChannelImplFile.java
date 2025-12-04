@@ -24,6 +24,7 @@ import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -79,6 +80,9 @@ public class DataChannelImplFile extends DataChannelAdapter {
 
     /** Number of threads with which to compress data when writing to a file. */
     private int compressionThreads;
+
+    /** Whether to include the evio v6 record-length index array in the trailer. Defaults to true. */
+    private boolean trailerIndex = true;
 
     /**
      * When END is hit and the event pipeline is backed up due to a full disk,
@@ -304,6 +308,14 @@ logger.info("      DataChannel File: compressionThreads = " + compressionThreads
                     }
                     catch (NumberFormatException e) {}
                 }
+                String indexOpt = attributeMap.get("trailerIndex");
+                if (indexOpt == null) {
+                    // Allow option on the file transport definition too
+                    indexOpt = transport.attr.get("trailerIndex");
+                }
+                if (indexOpt != null) {
+                    trailerIndex = Boolean.parseBoolean(indexOpt);
+                }
 
                 // For the EventWriter ...
                 // If there is one (1) compression thread (which may not do any compression),
@@ -328,6 +340,10 @@ logger.info("      DataChannel File: compressionThreads = " + compressionThreads
                                                        emu.getDataStreamCount(),  // stream count
                                                        compType, compressionThreads,
                                                        0, internalBufferSizeBytes);
+                if (!trailerIndex) {
+                    disableTrailerIndex(evioFileWriter);
+                    System.out.println("      DataChannel File: disabled evio trailer index array");
+                }
 
                 if (evioFileWriter.isDiskFull()) {
                     emu.sendRcWarningMessage("files cannot be written, disk almost full");
@@ -370,6 +386,21 @@ System.out.println("      DataChannel File out: Cannot create file, " + e.getMes
 
     /** {@inheritDoc} */
     public TransportType getTransportType() {return TransportType.FILE;}
+
+    /**
+     * Evio 6 defaults to adding a record-length index array; allow config to turn it off.
+     */
+    private void disableTrailerIndex(EventWriterUnsync writer) {
+        try {
+            Field indexField = EventWriterUnsync.class.getDeclaredField("addTrailerIndex");
+            indexField.setAccessible(true);
+            indexField.setBoolean(writer, false);
+        }
+        catch (Exception e) {
+            logger.warn("      DataChannel File: unable to disable trailer index array");
+            logger.debug("      DataChannel File: disableTrailerIndex stack", e);
+        }
+    }
 
 
     /** {@inheritDoc} */
