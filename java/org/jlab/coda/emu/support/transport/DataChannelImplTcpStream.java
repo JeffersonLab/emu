@@ -125,6 +125,11 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
     /** Threads used to read incoming data. */
     private DataInputHelper dataInputThread;
 
+    /** CPU affinity mode for the reader thread: "off", "auto", "core", "cpu". */
+    private String readerAffinityMode = "off";
+    /** Explicit CPU id when readerAffinityMode is "cpu". */
+    private int readerAffinityCpu = -1;
+
     /** Thread to parse incoming data and merge it into 1 ring if coming from multiple sockets. */
     private ParserMerger parserMergerThread;
 
@@ -250,6 +255,36 @@ public class DataChannelImplTcpStream extends DataChannelAdapter {
             }
 
             logger.info("      DataChannel TcpStream: recvBuf = " + tcpRecvBuf);
+
+            //--------------------------------------------------------------
+            // CPU affinity for the socket-reader thread.
+            //   "off"  / absent  → no pinning (default)
+            //   "auto"           → OpenHFT picks a free CPU
+            //   "core"           → whole physical core
+            //   "<int>"          → pin to that CPU id
+            // Requires OpenHFT affinity jar on the classpath, otherwise no-op.
+            //--------------------------------------------------------------
+            readerAffinityMode = "off";
+            readerAffinityCpu  = -1;
+            String affStr = attributeMap.get("affinity");
+            if (affStr != null && !affStr.isEmpty()) {
+                String s = affStr.trim().toLowerCase();
+                if (s.equals("auto") || s.equals("core") || s.equals("off")) {
+                    readerAffinityMode = s;
+                }
+                else {
+                    try {
+                        readerAffinityCpu  = Integer.parseInt(s);
+                        readerAffinityMode = "cpu";
+                    }
+                    catch (NumberFormatException e) { /* leave mode off */ }
+                }
+            }
+            if (!"off".equals(readerAffinityMode)) {
+                logger.info("      DataChannel TcpStream: reader affinity = " + readerAffinityMode +
+                            (readerAffinityCpu >= 0 ? (" cpu=" + readerAffinityCpu) : "") +
+                            (org.jlab.coda.emu.support.ThreadAffinity.isAvailable() ? "" : " (OpenHFT lib missing — will no-op)"));
+            }
 
             // set "data dump" option on
             // Currently unused.
@@ -878,6 +913,15 @@ logger.debug("      DataChannel TcpStream: end(), close output channel " + name)
             // Tell the world I've started
             latch.countDown();
 
+            // Pin this thread to a CPU if configured; released in finally below.
+            boolean affinityPinned = false;
+            switch (readerAffinityMode) {
+                case "auto": affinityPinned = org.jlab.coda.emu.support.ThreadAffinity.tryPin(); break;
+                case "core": affinityPinned = org.jlab.coda.emu.support.ThreadAffinity.tryPinCore(); break;
+                case "cpu":  affinityPinned = org.jlab.coda.emu.support.ThreadAffinity.tryPin(readerAffinityCpu); break;
+                default: /* off */ break;
+            }
+
             long word;
             int cmd, size;
             boolean delay = false;
@@ -976,6 +1020,7 @@ System.out.println("      DataChannel TcpStream in: " + name + ", got END event,
                 if (haveInputEndEvent) {
 System.out.println("      DataChannel TcpStream in: " + name +
                    ", exception but already have END event, so exit reading thd");
+                    if (affinityPinned) org.jlab.coda.emu.support.ThreadAffinity.release();
                     return;
                 }
                 e.printStackTrace();
@@ -987,6 +1032,9 @@ System.out.println("      DataChannel TcpStream in: " + name +
                     errString += ' ' + e.getMessage();
                 }
                 emu.setErrorState(errString);
+            }
+            finally {
+                if (affinityPinned) org.jlab.coda.emu.support.ThreadAffinity.release();
             }
         }
     }

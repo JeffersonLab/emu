@@ -990,6 +990,20 @@ System.out.println("\n\n");
         /** Time - updated every 1/4 seconds. */
         private volatile long time;
 
+        //--------------------------------------------------------------
+        // "Skip when unchanged" — avoids allocating ~18 cMsgPayloadItem
+        // objects per report during idle periods when no data is flowing.
+        // The full report is still sent whenever a counter changes OR at
+        // least once every KEEPALIVE_MULTIPLIER periods so run control
+        // never sees us as silent.
+        //--------------------------------------------------------------
+        private long prevEventCount = -1L;
+        private long prevWordCount  = -1L;
+        private long prevFrameCount = -1L;
+        private CODAStateIF prevState = null;
+        private int  skippedReports = 0;
+        private static final int KEEPALIVE_MULTIPLIER = 5;  // ~10 s at 2 s period
+
         /**
          * Get the time from System.currentTimeMillis(), but it's updated
          * only every 1/4 seconds or thereabouts.
@@ -1090,6 +1104,25 @@ System.out.println("\n\n");
                         outChanNames  = null;
                     }
                 }
+
+                // Skip the whole report (and its ~18 payload-item allocations)
+                // if no counter has moved and state is unchanged, so long as we
+                // still send at least one keepalive per KEEPALIVE_MULTIPLIER
+                // periods so run control does not assume we're dead.
+                CODAStateIF curState = state();
+                if (eventCount == prevEventCount &&
+                    wordCount  == prevWordCount  &&
+                    frameCount == prevFrameCount &&
+                    curState   == prevState      &&
+                    skippedReports < KEEPALIVE_MULTIPLIER) {
+                    skippedReports++;
+                    return;
+                }
+                skippedReports = 0;
+                prevEventCount = eventCount;
+                prevWordCount  = wordCount;
+                prevFrameCount = frameCount;
+                prevState      = curState;
 
                 try {
                     // Over write any previously defined payload items
