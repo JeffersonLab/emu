@@ -471,49 +471,51 @@ logger.info("  Module Adapter: streaming = " + streamingData);
     /** {@inheritDoc} */
     public boolean representsEmuStatistics() {return representStatistics;}
 
+    /** Cached array reused across getStatistics() calls to avoid per-call allocation.
+     *  Autoboxing of the values it holds is unavoidable without an API change. */
+    private final Object[] statsCache = new Object[11];
+
     /** {@inheritDoc} */
     synchronized public Object[] getStatistics() {
-
-        Object[] stats = new Object[11];
 
         // If we're not active, keep the accumulated
         // totals and sizes, but the rates are zero.
         if (moduleState != CODAState.ACTIVE) {
-            stats[0] = eventCountTotal;
-            stats[1] = wordCountTotal;
-            stats[2] = 0F;
-            stats[3] = 0F;
+            statsCache[0] = eventCountTotal;
+            statsCache[1] = wordCountTotal;
+            statsCache[2] = 0F;
+            statsCache[3] = 0F;
 
-            stats[4] = maxEventSize;
-            stats[5] = minEventSize;
-            stats[6] = avgEventSize;
-            stats[7] = goodChunk_X_EtBufSize;
-            stats[8] = timeToBuild;
+            statsCache[4] = maxEventSize;
+            statsCache[5] = minEventSize;
+            statsCache[6] = avgEventSize;
+            statsCache[7] = goodChunk_X_EtBufSize;
+            statsCache[8] = timeToBuild;
 
-            stats[9]  = frameCountTotal;
-            stats[10] = frameRate;
+            statsCache[9]  = frameCountTotal;
+            statsCache[10] = frameRate;
         }
         else {
             if (timeStatsOn && statistics != null) {
                 timeToBuild = statistics.fillHistogram();
             }
 
-            stats[0] = eventCountTotal;
-            stats[1] = wordCountTotal;
-            stats[2] = eventRate;
-            stats[3] = wordRate;
+            statsCache[0] = eventCountTotal;
+            statsCache[1] = wordCountTotal;
+            statsCache[2] = eventRate;
+            statsCache[3] = wordRate;
 
-            stats[4] = maxEventSize;
-            stats[5] = minEventSize;
-            stats[6] = avgEventSize;
-            stats[7] = goodChunk_X_EtBufSize;
-            stats[8] = timeToBuild;
+            statsCache[4] = maxEventSize;
+            statsCache[5] = minEventSize;
+            statsCache[6] = avgEventSize;
+            statsCache[7] = goodChunk_X_EtBufSize;
+            statsCache[8] = timeToBuild;
 
-            stats[9]  = frameCountTotal;
-            stats[10] = frameRate;
+            statsCache[9]  = frameCountTotal;
+            statsCache[10] = frameRate;
         }
 
-        return stats;
+        return statsCache;
     }
 
     /** {@inheritDoc} */

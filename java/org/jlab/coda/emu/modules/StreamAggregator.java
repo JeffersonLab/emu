@@ -223,6 +223,46 @@ public class StreamAggregator extends ModuleAdapter {
     private SequenceBarrier[] buildBarrierIn;
 
     //-------------------------------------------
+    // Empty-frame PayloadBuffer pool (one pool per build thread).
+    // Sized to sorterRingSize so a slot is never reused while a build
+    // thread still references the previous occupant: the sorter is the
+    // sole producer and cannot overwrite a sorter-ring slot until the
+    // build thread advances buildSequenceIn, which happens after the
+    // build thread is done reading the empty-frame PayloadBuffer.
+    //-------------------------------------------
+    private PayloadBuffer[][] emptyFramePool;
+    private int[] emptyFrameCursor;
+
+    //-------------------------------------------
+    // CPU affinity configuration.
+    //-------------------------------------------
+    /** "off", "auto", "core", or "list". */
+    private String affinityMode;
+    /** Only used when affinityMode == "list". */
+    private int[] affinityCpus;
+    /** Round-robin index into affinityCpus, shared across threads. Access as volatile int++. */
+    private final java.util.concurrent.atomic.AtomicInteger affinityCursor =
+            new java.util.concurrent.atomic.AtomicInteger(0);
+
+    /**
+     * Pin the calling thread using the currently-configured affinity mode.
+     * Safe to call from any thread; returns true iff a pin actually took effect.
+     */
+    private boolean pinCurrentThreadIfConfigured() {
+        switch (affinityMode) {
+            case "auto": return org.jlab.coda.emu.support.ThreadAffinity.tryPin();
+            case "core": return org.jlab.coda.emu.support.ThreadAffinity.tryPinCore();
+            case "list":
+                int idx = affinityCursor.getAndIncrement();
+                if (idx < affinityCpus.length) {
+                    return org.jlab.coda.emu.support.ThreadAffinity.tryPin(affinityCpus[idx]);
+                }
+                return false;
+            default: return false;
+        }
+    }
+
+    //-------------------------------------------
     // Statistics
     //-------------------------------------------
 
@@ -277,6 +317,45 @@ logger.info("  Agg mod: # of event building threads = " + buildingThreadCount);
             if (timestampSlop < 1) timestampSlop = 2;
         }
         catch (NumberFormatException e) {}
+
+        //--------------------------------------------------------------------
+        // CPU affinity. Accepts:
+        //   "off"  / absent → no pinning (default)
+        //   "auto"          → let OpenHFT pick a free CPU per thread
+        //   "core"          → pin each thread to a whole physical core
+        //   "3,5,7,9"       → explicit CPU-id list, one per thread in start order
+        //
+        // Requires the OpenHFT affinity jar (net.openhft:affinity) on the classpath;
+        // otherwise the setting is silently ignored. See ThreadAffinity.java.
+        //--------------------------------------------------------------------
+        affinityMode = "off";
+        affinityCpus = null;
+        String affStr = attributeMap.get("affinity");
+        if (affStr != null && !affStr.isEmpty()) {
+            String s = affStr.trim().toLowerCase();
+            if (s.equals("auto") || s.equals("core") || s.equals("off")) {
+                affinityMode = s;
+            }
+            else {
+                // Parse explicit CPU-id list
+                String[] parts = s.split(",");
+                int[] cpus = new int[parts.length];
+                boolean ok = true;
+                for (int i = 0; i < parts.length; i++) {
+                    try { cpus[i] = Integer.parseInt(parts[i].trim()); }
+                    catch (NumberFormatException e) { ok = false; break; }
+                }
+                if (ok) {
+                    affinityMode = "list";
+                    affinityCpus = cpus;
+                }
+            }
+        }
+        if (!"off".equals(affinityMode)) {
+            logger.info("  Agg mod: CPU affinity = " + affinityMode +
+                        (affinityCpus != null ? " " + java.util.Arrays.toString(affinityCpus) : "") +
+                        (org.jlab.coda.emu.support.ThreadAffinity.isAvailable() ? "" : " (OpenHFT lib missing — will no-op)"));
+        }
 
         //--------------------------------------------------------------------
         // Set parameters for the ByteBufferSupply which provides ByteBuffers
@@ -422,9 +501,9 @@ logger.info("  Agg mod: internal ring buf count -> " + ringItemCount);
 
         RingBuffer<RingItem> rb = outputChannels.get(channelNum).getRingBuffersOut()[ringNum];
 
-System.out.println("  Agg mod: wait ch" + channelNum + ", ring " + ringNum);
+//System.out.println("  Agg mod: wait ch" + channelNum + ", ring " + ringNum);
         long nextRingItem = rb.nextIntr(1);
-System.out.println("  Agg mod: got item for " + channelNum + ":" + ringNum);
+//System.out.println("  Agg mod: got item for " + channelNum + ":" + ringNum);
         RingItem ri = rb.get(nextRingItem);
         ri.setBuffer(buf);
         ri.setEventType(eventType);
@@ -468,10 +547,10 @@ System.out.println("  Agg mod: getAllControlEvents input chan " + i);
             try  {
                 ControlType cType;
                 while (true) {
-System.out.println("  Agg mod: getAllControlEvents wait for seq " + nextSequences[i]);
+//System.out.println("  Agg mod: getAllControlEvents wait for seq " + nextSequences[i]);
                     barriers[i].waitFor(nextSequences[i]);
                     buildingBanks[i] = (PayloadBuffer) ringBuffersIn[i].get(nextSequences[i]);
-System.out.println("  Agg mod: getAllControlEvents got seq " + nextSequences[i]);
+//System.out.println("  Agg mod: getAllControlEvents got seq " + nextSequences[i]);
 
                     cType = buildingBanks[i].getControlType();
                     if (cType == null) {
@@ -813,12 +892,16 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
         private void sendEmptyFrameToTimeSliceRing(long skippedFrame, long timestamp, int btIndex)
                 throws InterruptedException {
 
-            // We use clone here since we want each of these buffers to be
-            // completely independent. If they were copies, then 2 successive
-            // bufs would result in multiple threads overwriting the contents.
-            //
-            // This creates garbage, but empty frames should be very rare.
-            PayloadBuffer emptyBuffer = (PayloadBuffer)emptyFrameBuffer.clone();
+            // Pooled empty-frame PayloadBuffer. Pool size == sorterRingSize (power of 2)
+            // guarantees the slot we hand out is not still owned by the build thread:
+            // the sorter cannot claim more sorter-ring slots than the build thread
+            // has released via buildSequenceIn, so cycling the pool at the same rate
+            // is safe. Reuses avoid the per-skip byte[] + PayloadBuffer allocations
+            // that clone() would perform.
+            int cursor = emptyFrameCursor[btIndex];
+            PayloadBuffer emptyBuffer = emptyFramePool[btIndex][cursor];
+            emptyFrameCursor[btIndex] = (cursor + 1) & (emptyFramePool[btIndex].length - 1);
+
             try {
                 Evio.updateEmptyFrameBuffer(skippedFrame, timestamp, inputChannelCount, emptyBuffer);
             }
@@ -901,7 +984,7 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
                             if (eventType == EventType.CONTROL) {
                                 if (bank.getControlType() == ControlType.END) {
                                     // Found the END event
-       System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
+//       System.out.println("  Agg mod: findEnd, chan " + ch + " got END from " + source + ", back " + offset + " places in ring");
                                     // Release buffer back to ByteBufferSupply
                                     bank.releaseByteBuffer();
                                     endEventCount++;
@@ -972,6 +1055,9 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
 
         /** Run this thread. */
         public void run() {
+
+            boolean affinityPinned = pinCurrentThreadIfConfigured();
+            try {
 
             // Initialize
             boolean streaming, gotBank, recordIdError;
@@ -1531,6 +1617,11 @@ System.out.println("WRITE CONTROL EVENT to chan #" + i + ", ring 0");
             catch (AlertException | TimeoutException e) {
                 e.printStackTrace();
             }
+
+            } // end outer try for affinity scope
+            finally {
+                if (affinityPinned) org.jlab.coda.emu.support.ThreadAffinity.release();
+            }
         }
     }
 
@@ -1748,6 +1839,7 @@ System.out.println("  Agg mod: sent END event to output channel  " + nextChannel
         /** Run this thread. */
         public void run() {
 
+            boolean affinityPinned = pinCurrentThreadIfConfigured();
             try {
                 // Create a reusable supply of ByteBuffer objects
                 // for writing built physics events into.
@@ -2323,6 +2415,9 @@ System.out.println("  Agg mod: bt" + btIndex + " %%%%% clean inputs, releasing s
                         }
                     }
                 }
+
+                // Release CPU affinity, if any was acquired at the top of run().
+                if (affinityPinned) org.jlab.coda.emu.support.ThreadAffinity.release();
             }
 
             if (debug) System.out.println("  Agg mod: Building thread is ending");
@@ -2604,6 +2699,24 @@ System.out.println("  Agg mod: interruptThreads: will end building/filling threa
             sorterRingBuffers[j].addGatingSequences(buildSequenceIn[j]);
             // We have 1 barrier
             buildBarrierIn[j] = sorterRingBuffers[j].newBarrier();
+        }
+
+        //------------------------------------------------
+        // Pre-clone empty-frame PayloadBuffers, one pool per build thread.
+        // Size = 2 * sorterRingSize to safely cover the full pipeline depth:
+        // a pool slot's ByteBuffer may still be referenced by the output
+        // ring / writer thread after the build thread has released the
+        // sorter-ring slot. 2x sorterRingSize (kept a power of 2 so the
+        // cursor can be masked with & (size-1)) leaves plenty of headroom
+        // above sorterRingSize + outputRingSize.
+        //------------------------------------------------
+        int emptyPoolSize = sorterRingSize * 2;
+        emptyFramePool   = new PayloadBuffer[buildingThreadCount][emptyPoolSize];
+        emptyFrameCursor = new int[buildingThreadCount];
+        for (int j = 0; j < buildingThreadCount; j++) {
+            for (int k = 0; k < emptyPoolSize; k++) {
+                emptyFramePool[j][k] = (PayloadBuffer) emptyFrameBuffer.clone();
+            }
         }
 
         //------------------------------------------------
